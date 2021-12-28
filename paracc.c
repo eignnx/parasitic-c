@@ -1,8 +1,8 @@
-#include "stdio.h"   // printf, perror
-#include "stdlib.h"  // exit
-#include "ctype.h"   // isalpha, isalnum, isspace, isdigit
-#include "string.h"  // strncpy_s
-#include "stdbool.h" // true, false, bool
+#include <stdio.h>   // printf, perror
+#include <stdlib.h>  // exit
+#include <ctype.h>   // isalpha, isalnum, isspace, isdigit
+#include <string.h>  // strncpy_s
+#include <stdbool.h> // true, false, bool
 
 // Parasitic C
 
@@ -20,6 +20,7 @@ int TOK_SEMI = 107;
 int TOK_EQUAL = 108;
 int TOK_STAR = 109;
 int TOK_COMMA = 110;
+int TOK_AMPERSAND = 111;
 
 // LITERALS
 int TOK_LITERAL_INT = 200;
@@ -41,9 +42,11 @@ int TOK_BREAK = 310;
 int TOK_CONTINUE = 311;
 int TOK_TRUE = 312;
 int TOK_FALSE = 313;
+int TOK_STRUCT = 314;
 
 // IDENTIFIER
 int TOK_IDENT = 400;
+int TOK_ANGLE_BRACK_FILENAME = 401;
 
 ///////////////// </TOKEN> //////////////////////////
 
@@ -217,7 +220,6 @@ bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **
     *new_input = input;
     int i = 0;
 
-    // "a"
     if (input[i] != '"') // Start quote mark.
         return false;
     i++;
@@ -246,6 +248,35 @@ bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **
     return true;
 }
 
+bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_token, char **new_input)
+{
+    *new_input = input;
+    int i = 0;
+
+    if (input[i] != '<') // Start marker.
+        return false;
+    i++;
+
+    while (input[i] != '>' && input[i] != '\0')
+    {
+        if (input[i] == '\\')
+        {
+            return false;
+        }
+        i++;
+    }
+
+    if (input[i] != '>') // End marker.
+        return false;
+    i++;
+
+    *out_tok_typ = TOK_ANGLE_BRACK_FILENAME;
+    *out_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
+    *new_input = &input[i];
+    strncpy_s(*out_token, i + 1 - 2, &input[1], i - 2);
+    return true;
+}
+
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 // Returns `false` if at end of input, `true` otherwise.
@@ -266,6 +297,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (lex_literal_string(input, out_tok_typ, out_token, new_input))
+        return true;
+
+    if (lex_angle_bracket_filename(input, out_tok_typ, out_token, new_input))
         return true;
 
     if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
@@ -364,7 +398,11 @@ void lex_all_input(char *input)
 
     while (lex(input, &out_tok_typ, &token, &input))
     {
-        if (out_tok_typ == TOK_IDENT || out_tok_typ == TOK_LITERAL_INT || out_tok_typ == TOK_LITERAL_CHAR || out_tok_typ == TOK_LITERAL_STRING)
+        if (out_tok_typ == TOK_IDENT ||
+            out_tok_typ == TOK_LITERAL_INT ||
+            out_tok_typ == TOK_LITERAL_CHAR ||
+            out_tok_typ == TOK_LITERAL_STRING ||
+            out_tok_typ == TOK_ANGLE_BRACK_FILENAME)
         {
             printf("Got Token #%d:\t\"%s\"\n", out_tok_typ, token);
         }
@@ -379,15 +417,16 @@ void lex_all_input(char *input)
 int main()
 {
     char *input =
-        "#include\n"
+        "#include <stdio.h>\n"
+        "#include \"my_file.h\"\n"
         "void my_func123()\n"
         "{   \n"
         "    bool my_bool = true;\n"
         "    int my_int = -1234;\n"
-        "    char my_char1 = '\\n'\n"
-        "    char my_char2 = 'A'\n"
-        "    char my_char3 = '\\''\n"
-        "    char *my_str = \"qwea sdf sgd \\\" \\n rty\"\n"
+        "    char my_char1 = '\\n';\n"
+        "    char my_char2 = 'A';\n"
+        "    char my_char3 = '\\'';\n"
+        "    char *my_str = \"qwea sdf sgd \\\" \\n rty\";\n"
         "}";
 
     lex_all_input(input);
