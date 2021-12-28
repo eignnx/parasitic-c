@@ -80,7 +80,7 @@ int expect_space(char *input, char **new_input)
     return found_space || *input == '\0';
 }
 
-int expect_ident(char *input, char **out_token, char **new_input)
+int expect_ident(char *input, char **new_input, char **out_ident)
 {
     char *old_input = input;
     int i = 0;
@@ -91,8 +91,9 @@ int expect_ident(char *input, char **out_token, char **new_input)
         {
             i++;
         }
-        *new_input = input + i;
-        strncpy_s(*out_token, MAX_IDENT_LEN, old_input, i);
+        *new_input = &input[i];
+        *out_ident = malloc(i + 1); // Add 1 for the '\0'.
+        strncpy_s(*out_ident, i + 1, old_input, i);
         return true;
     }
     *new_input = old_input;
@@ -210,7 +211,7 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
         return;
 
-    if (expect_ident(input, out_token, &input))
+    if (expect_ident(input, &input, out_token))
     {
         *out_tok_typ = TOK_IDENT;
         *new_input = input;
@@ -225,16 +226,15 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
 int main()
 {
     char *input =
-        "void main()\n"
+        "asjkdfghls123 main()\n"
         "{\n"
         "\n"
         "}";
 
     int out_tok_typ = -123214;
     char *new_input = "<EMPTY INPUT>";
-    char *token_buf = malloc(MAX_IDENT_LEN * sizeof(char));
-    strncpy_s(token_buf, MAX_IDENT_LEN, "<EMPTY TOKEN>", 14);
+    char *token = "<EMPTY TOKEN>";
 
-    lex(input, &out_tok_typ, &token_buf, &new_input);
-    printf("tok_typ = %d, token = \"%s\", new_input = \"%s\"\n", out_tok_typ, token_buf, new_input);
+    lex(input, &out_tok_typ, &token, &new_input);
+    printf("tok_typ = %d, token = \"%s\", new_input = \"%s\"\n", out_tok_typ, token, new_input);
 }
