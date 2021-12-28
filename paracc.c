@@ -1,7 +1,8 @@
-#include "stdio.h"  // printf, perror
-#include "stdlib.h" // exit
-#include "ctype.h"  // isalpha, isalnum, isspace
-#include "string.h" // strncpy_s
+#include "stdio.h"   // printf, perror
+#include "stdlib.h"  // exit
+#include "ctype.h"   // isalpha, isalnum, isspace
+#include "string.h"  // strncpy_s
+#include "stdbool.h" // true, false, bool
 
 // Parasitic C
 
@@ -28,6 +29,7 @@ int TOK_INT_LITERAL = 201;
 int TOK_INT = 300;
 int TOK_CHAR = 301;
 int TOK_VOID = 302;
+int TOK_INCLUDE = 303;
 
 // IDENTIFIER
 int TOK_IDENT = 400;
@@ -36,10 +38,7 @@ int TOK_IDENT = 400;
 
 int MAX_IDENT_LEN = 257;
 
-int true = 1;
-int false = 0;
-
-int starts_with(char *input, char *target, char **new_input)
+bool starts_with(char *input, char *target, char **new_input)
 {
     int i = 0;
     while (true)
@@ -66,7 +65,7 @@ int starts_with(char *input, char *target, char **new_input)
 // "     " --> true
 // "qwerty" --> false
 // "" --> true (OK because EOF is fine)
-int expect_space(char *input, char **new_input)
+bool expect_space(char *input, char **new_input)
 {
 
     int found_space = false;
@@ -81,7 +80,14 @@ int expect_space(char *input, char **new_input)
     return found_space || *input == '\0';
 }
 
-int expect_ident(char *input, char **new_input, char **out_ident)
+// Returns `true` if at end of input.
+bool allow_whitespace(char *input, char **new_input)
+{
+    bool _ = expect_space(input, new_input);
+    return **new_input == '\0';
+}
+
+bool expect_ident(char *input, char **new_input, char **out_ident)
 {
     char *old_input = input;
     int i = 0;
@@ -101,7 +107,7 @@ int expect_ident(char *input, char **new_input, char **out_ident)
     return false;
 }
 
-int expect_symbol(
+bool expect_symbol(
     char *input,
     char *expected_symbol,
     int expected_tok_typ,
@@ -117,7 +123,7 @@ int expect_symbol(
     return false;
 }
 
-int expect_keyword(
+bool expect_keyword(
     char *input,
     char *expected_kw,
     int expected_tok_typ,
@@ -145,57 +151,67 @@ int expect_keyword(
 
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
-void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
+// Returns `false` if at end of input, `true` otherwise.
+bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
 {
+    if (allow_whitespace(input, &input))
+    {
+        *new_input = input;
+        return false;
+    }
+
     char *old_input = input;
 
     if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, ")", TOK_CLOSE_PAREN, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "{", TOK_OPEN_BRACE, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "}", TOK_CLOSE_BRACE, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "[", TOK_OPEN_BRACK, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "]", TOK_CLOSE_BRACK, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "#", TOK_POUND, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, ";", TOK_SEMI, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "=", TOK_EQUAL, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, "*", TOK_STAR, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_symbol(input, ",", TOK_COMMA, out_tok_typ, new_input))
-        return;
+        return true;
 
     if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
-        return;
+        return true;
 
     if (expect_keyword(input, "char", TOK_CHAR, out_tok_typ, old_input, new_input))
-        return;
+        return true;
 
     if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
-        return;
+        return true;
+
+    if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
+        return true;
 
     if (expect_ident(input, &input, out_token))
     {
         *out_tok_typ = TOK_IDENT;
         *new_input = input;
-        return;
+        return true;
     }
 
     // Fallthrough
@@ -203,18 +219,41 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     exit(1);
 }
 
-int main()
+void lex_all_input(char *input)
 {
-    char *input =
-        "#asjkdfghls123 main()\n"
-        "{\n"
-        "\n"
-        "}";
-
     int out_tok_typ = -123214;
     char *new_input = "<EMPTY INPUT>";
     char *token = "<EMPTY TOKEN>";
 
-    lex(input, &out_tok_typ, &token, &new_input);
-    printf("tok_typ = %d, token = \"%s\", new_input = \"%s\"\n", out_tok_typ, token, new_input);
+    while (lex(input, &out_tok_typ, &token, &input))
+    {
+        if (out_tok_typ == TOK_IDENT)
+        {
+            printf("Got Token #%d:\t%s\n", out_tok_typ, token);
+        }
+        else
+        {
+            printf("Got Token #%d\n", out_tok_typ);
+        }
+    }
+    printf("End of input\n");
+}
+
+int main()
+{
+    char *input =
+        "#include\n"
+        "void my_func123 ()\n"
+        "   {   \n"
+        "\n"
+        "}";
+
+    lex_all_input(input);
+
+    // int out_tok_typ = -123214;
+    // char *new_input = "<EMPTY INPUT>";
+    // char *token = "<EMPTY TOKEN>";
+
+    // lex(input, &out_tok_typ, &token, &new_input);
+    // printf("tok_typ = %d, token = \"%s\", new_input = \"%s\"\n", out_tok_typ, token, new_input);
 }
