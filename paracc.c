@@ -99,6 +99,32 @@ int expect_ident(char *input, char **out_token, char **new_input)
     return false;
 }
 
+int expect_keyword(
+    char *input,
+    char *expected_kw,
+    int expected_tok_typ,
+    int *out_tok_typ,
+    char *old_input,
+    char **new_input)
+{
+    if (starts_with(input, expected_kw, &input))
+    {
+        if (expect_space(input, &input))
+        {
+            *new_input = input;
+            *out_tok_typ = expected_tok_typ;
+            return true;
+        }
+        else
+        {
+            *new_input = old_input;
+            return false;
+        }
+    }
+    *new_input = old_input;
+    return false;
+}
+
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
@@ -175,47 +201,14 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return;
     }
 
-    if (starts_with(input, "int", &input))
-    {
-        if (expect_space(input, &input))
-        {
-            *out_tok_typ = TOK_INT;
-            *new_input = input;
-            return;
-        }
-        else
-        {
-            input = old_input;
-        }
-    }
+    if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
+        return;
 
-    if (starts_with(input, "void", &input))
-    {
-        if (expect_space(input, &input))
-        {
-            *out_tok_typ = TOK_VOID;
-            *new_input = input;
-            return;
-        }
-        else
-        {
-            input = old_input;
-        }
-    }
+    if (expect_keyword(input, "char", TOK_CHAR, out_tok_typ, old_input, new_input))
+        return;
 
-    if (starts_with(input, "char", &input))
-    {
-        if (expect_space(input, &input))
-        {
-            *out_tok_typ = TOK_CHAR;
-            *new_input = input;
-            return;
-        }
-        else
-        {
-            input = old_input;
-        }
-    }
+    if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
+        return;
 
     if (expect_ident(input, out_token, &input))
     {
@@ -231,11 +224,17 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
 
 int main()
 {
+    char *input =
+        "void main()\n"
+        "{\n"
+        "\n"
+        "}";
+
     int out_tok_typ = -123214;
     char *new_input = "<EMPTY INPUT>";
     char *token_buf = malloc(MAX_IDENT_LEN * sizeof(char));
     strncpy_s(token_buf, MAX_IDENT_LEN, "<EMPTY TOKEN>", 14);
 
-    lex("my_type1234 main() {}", &out_tok_typ, &token_buf, &new_input);
+    lex(input, &out_tok_typ, &token_buf, &new_input);
     printf("tok_typ = %d, token = \"%s\", new_input = \"%s\"\n", out_tok_typ, token_buf, new_input);
 }
