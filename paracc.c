@@ -10,7 +10,7 @@ int main()
         "\n"
         "struct my_type {\n"
         "    int x;\n"
-        "}\n"
+        "};\n"
         "\n"
         "void my_func123()\n"
         "{ // this is a comment! \n"
