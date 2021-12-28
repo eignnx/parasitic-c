@@ -28,8 +28,18 @@ int TOK_INT_LITERAL = 201;
 // KEYWORDS
 int TOK_INT = 300;
 int TOK_CHAR = 301;
-int TOK_VOID = 302;
-int TOK_INCLUDE = 303;
+int TOK_BOOL = 302;
+int TOK_VOID = 303;
+int TOK_INCLUDE = 304;
+int TOK_RETURN = 305;
+int TOK_IF = 306;
+int TOK_ELSE = 307;
+int TOK_WHILE = 308;
+int TOK_FOR = 309;
+int TOK_BREAK = 310;
+int TOK_CONTINUE = 311;
+int TOK_TRUE = 312;
+int TOK_FALSE = 313;
 
 // IDENTIFIER
 int TOK_IDENT = 400;
@@ -67,7 +77,6 @@ bool starts_with(char *input, char *target, char **new_input)
 // "" --> true (OK because EOF is fine)
 bool expect_space(char *input, char **new_input)
 {
-
     int found_space = false;
 
     while (isspace(*input))
@@ -133,7 +142,7 @@ bool expect_keyword(
 {
     if (starts_with(input, expected_kw, &input))
     {
-        if (expect_space(input, &input))
+        if (!isalnum(*input))
         {
             *new_input = input;
             *out_tok_typ = expected_tok_typ;
@@ -141,6 +150,11 @@ bool expect_keyword(
         }
         else
         {
+            // `*input` IS alphanumeric, so `expected_kw` is a strict subsequence of
+            // `old_input`.
+            // EXAMPLE:
+            //   old_input   = "javascript";
+            //   expected_kw = "java";
             *new_input = old_input;
             return false;
         }
@@ -201,10 +215,40 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_keyword(input, "char", TOK_CHAR, out_tok_typ, old_input, new_input))
         return true;
 
+    if (expect_keyword(input, "bool", TOK_BOOL, out_tok_typ, old_input, new_input))
+        return true;
+
     if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "return", TOK_RETURN, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "if", TOK_IF, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "else", TOK_ELSE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "while", TOK_WHILE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "for", TOK_FOR, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "break", TOK_BREAK, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "continue", TOK_CONTINUE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "true", TOK_TRUE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "false", TOK_FALSE, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_ident(input, &input, out_token))
@@ -243,9 +287,9 @@ int main()
 {
     char *input =
         "#include\n"
-        "void my_func123 ()\n"
+        "void my_func123()\n"
         "   {   \n"
-        "\n"
+        "   bool my_bool = true;\n"
         "}";
 
     lex_all_input(input);
