@@ -354,6 +354,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_symbol(input, ",", TOK_COMMA, out_tok_typ, new_input))
         return true;
 
+    if (expect_symbol(input, "&", TOK_AMPERSAND, out_tok_typ, new_input))
+        return true;
+
     if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
         return true;
 
@@ -394,6 +397,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_keyword(input, "false", TOK_FALSE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "struct", TOK_STRUCT, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_ident(input, &input, out_token))
@@ -438,6 +444,11 @@ int main()
     char *input =
         "#include <stdio.h>\n"
         "#include \"my_file.h\"\n"
+        "\n"
+        "struct my_type {\n"
+        "    int x;\n"
+        "}\n"
+        "\n"
         "void my_func123()\n"
         "{ // this is a comment! \n"
         "    bool my_bool = true;\n"
@@ -446,7 +457,7 @@ int main()
         "    char my_char2 = 'A';\n"
         "    char my_char3 = '\\'';\n"
         "    char *my_str = \"qwea sdf sgd \\\" \\n rty\";\n"
-        "}";
+        "}\n";
 
     lex_all_input(input);
 
