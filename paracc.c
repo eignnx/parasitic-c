@@ -1,6 +1,6 @@
 #include "stdio.h"   // printf, perror
 #include "stdlib.h"  // exit
-#include "ctype.h"   // isalpha, isalnum, isspace
+#include "ctype.h"   // isalpha, isalnum, isspace, isdigit
 #include "string.h"  // strncpy_s
 #include "stdbool.h" // true, false, bool
 
@@ -22,8 +22,9 @@ int TOK_STAR = 109;
 int TOK_COMMA = 110;
 
 // LITERALS
-int TOK_STRING_LITERAL = 200;
-int TOK_INT_LITERAL = 201;
+int TOK_LITERAL_INT = 200;
+int TOK_LITERAL_CHAR = 201;
+int TOK_LITERAL_STRING = 202;
 
 // KEYWORDS
 int TOK_INT = 300;
@@ -45,8 +46,6 @@ int TOK_FALSE = 313;
 int TOK_IDENT = 400;
 
 ///////////////// </TOKEN> //////////////////////////
-
-int MAX_IDENT_LEN = 257;
 
 bool starts_with(char *input, char *target, char **new_input)
 {
@@ -163,6 +162,31 @@ bool expect_keyword(
     return false;
 }
 
+bool lex_literal_int(char *input, int *out_tok_typ, char **out_token, char **new_input)
+{
+    int i = 0;
+
+    if (input[i] == '-')
+        i++;
+
+    while (isdigit(input[i]))
+        i++;
+
+    if (i > 1 || (i == 1 && input[0] != '-'))
+    {
+        *new_input = &input[i];
+        *out_token = malloc(i + 1); // Need extra space for '\0'.
+        *out_tok_typ = TOK_LITERAL_INT;
+        strncpy_s(*out_token, i + 1, input, i);
+        return true;
+    }
+    else
+    {
+        *new_input = input;
+        return false;
+    }
+}
+
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 // Returns `false` if at end of input, `true` otherwise.
@@ -175,6 +199,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     }
 
     char *old_input = input;
+
+    if (lex_literal_int(input, out_tok_typ, out_token, new_input))
+        return true;
 
     if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
         return true;
@@ -271,7 +298,7 @@ void lex_all_input(char *input)
 
     while (lex(input, &out_tok_typ, &token, &input))
     {
-        if (out_tok_typ == TOK_IDENT)
+        if (out_tok_typ == TOK_IDENT || out_tok_typ == TOK_LITERAL_INT)
         {
             printf("Got Token #%d:\t%s\n", out_tok_typ, token);
         }
@@ -290,6 +317,7 @@ int main()
         "void my_func123()\n"
         "   {   \n"
         "   bool my_bool = true;\n"
+        "   int my_int = -1234;\n"
         "}";
 
     lex_all_input(input);
