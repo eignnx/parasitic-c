@@ -18,6 +18,7 @@ int TOK_POUND = 106;
 int TOK_SEMI = 107;
 int TOK_EQUAL = 108;
 int TOK_STAR = 109;
+int TOK_COMMA = 110;
 
 // LITERALS
 int TOK_STRING_LITERAL = 200;
@@ -100,6 +101,22 @@ int expect_ident(char *input, char **new_input, char **out_ident)
     return false;
 }
 
+int expect_symbol(
+    char *input,
+    char *expected_symbol,
+    int expected_tok_typ,
+    int *out_tok_typ,
+    char **new_input)
+{
+    if (starts_with(input, expected_symbol, &input))
+    {
+        *out_tok_typ = expected_tok_typ;
+        *new_input = input;
+        return true;
+    }
+    return false;
+}
+
 int expect_keyword(
     char *input,
     char *expected_kw,
@@ -132,75 +149,38 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
 {
     char *old_input = input;
 
-    if (starts_with(input, "#", &input))
-    {
-        *out_tok_typ = TOK_POUND;
-        *new_input = input;
+    if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "(", &input))
-    {
-        *out_tok_typ = TOK_OPEN_PAREN;
-        *new_input = input;
+    if (expect_symbol(input, ")", TOK_CLOSE_PAREN, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, ")", &input))
-    {
-        *out_tok_typ = TOK_CLOSE_PAREN;
-        *new_input = input;
+    if (expect_symbol(input, "{", TOK_OPEN_BRACE, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "{", &input))
-    {
-        *out_tok_typ = TOK_OPEN_BRACE;
-        *new_input = input;
+    if (expect_symbol(input, "}", TOK_CLOSE_BRACE, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "}", &input))
-    {
-        *out_tok_typ = TOK_CLOSE_BRACE;
-        *new_input = input;
+    if (expect_symbol(input, "[", TOK_OPEN_BRACK, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "[", &input))
-    {
-        *out_tok_typ = TOK_OPEN_BRACK;
-        *new_input = input;
+    if (expect_symbol(input, "]", TOK_CLOSE_BRACK, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "]", &input))
-    {
-        *out_tok_typ = TOK_CLOSE_BRACK;
-        *new_input = input;
+    if (expect_symbol(input, "#", TOK_POUND, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, ";", &input))
-    {
-        *out_tok_typ = TOK_SEMI;
-        *new_input = input;
+    if (expect_symbol(input, ";", TOK_SEMI, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "=", &input))
-    {
-        *out_tok_typ = TOK_EQUAL;
-        *new_input = input;
+    if (expect_symbol(input, "=", TOK_EQUAL, out_tok_typ, new_input))
         return;
-    }
 
-    if (starts_with(input, "*", &input))
-    {
-        *out_tok_typ = TOK_STAR;
-        *new_input = input;
+    if (expect_symbol(input, "*", TOK_STAR, out_tok_typ, new_input))
         return;
-    }
+
+    if (expect_symbol(input, ",", TOK_COMMA, out_tok_typ, new_input))
+        return;
 
     if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
         return;
@@ -226,7 +206,7 @@ void lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
 int main()
 {
     char *input =
-        "asjkdfghls123 main()\n"
+        "#asjkdfghls123 main()\n"
         "{\n"
         "\n"
         "}";
