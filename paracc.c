@@ -212,6 +212,40 @@ bool lex_literal_char(char *input, int *out_tok_typ, char **out_token, char **ne
     return true;
 }
 
+bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **new_input)
+{
+    *new_input = input;
+    int i = 0;
+
+    // "a"
+    if (input[i] != '"') // Start quote mark.
+        return false;
+    i++;
+
+    while (input[i] != '"' && input[i] != '\0')
+    {
+        if (input[i] == '\\')
+        {
+            i++;
+            if (input[i] == '\0') // In case there's a backslash at the EOF.
+            {
+                return false;
+            }
+        }
+        i++;
+    }
+
+    if (input[i] != '"') // End quote mark.
+        return false;
+    i++;
+
+    *out_tok_typ = TOK_LITERAL_STRING;
+    *out_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
+    *new_input = &input[i];
+    strncpy_s(*out_token, i + 1 - 2, &input[1], i - 2);
+    return true;
+}
+
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 // Returns `false` if at end of input, `true` otherwise.
@@ -231,8 +265,8 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (lex_literal_char(input, out_tok_typ, out_token, new_input))
         return true;
 
-    // if (lex_literal_string(input, out_tok_typ, out_tok, new_input))
-    //     return true;
+    if (lex_literal_string(input, out_tok_typ, out_token, new_input))
+        return true;
 
     if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
         return true;
@@ -330,7 +364,7 @@ void lex_all_input(char *input)
 
     while (lex(input, &out_tok_typ, &token, &input))
     {
-        if (out_tok_typ == TOK_IDENT || out_tok_typ == TOK_LITERAL_INT || out_tok_typ == TOK_LITERAL_CHAR)
+        if (out_tok_typ == TOK_IDENT || out_tok_typ == TOK_LITERAL_INT || out_tok_typ == TOK_LITERAL_CHAR || out_tok_typ == TOK_LITERAL_STRING)
         {
             printf("Got Token #%d:\t\"%s\"\n", out_tok_typ, token);
         }
@@ -347,12 +381,13 @@ int main()
     char *input =
         "#include\n"
         "void my_func123()\n"
-        "   {   \n"
-        "   bool my_bool = true;\n"
-        "   int my_int = -1234;\n"
-        "   char my_char1 = '\\n'\n"
-        "   char my_char2 = 'A'\n"
-        "   char my_char3 = '\\''\n"
+        "{   \n"
+        "    bool my_bool = true;\n"
+        "    int my_int = -1234;\n"
+        "    char my_char1 = '\\n'\n"
+        "    char my_char2 = 'A'\n"
+        "    char my_char3 = '\\''\n"
+        "    char *my_str = \"qwea sdf sgd \\\" \\n rty\"\n"
         "}";
 
     lex_all_input(input);
