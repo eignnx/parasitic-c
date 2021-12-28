@@ -79,12 +79,31 @@ bool starts_with(char *input, char *target, char **new_input)
 // "" --> true (OK because EOF is fine)
 bool expect_space(char *input, char **new_input)
 {
-    int found_space = false;
+    bool found_space = false;
+    bool inside_comment = false;
 
-    while (isspace(*input))
+    while (true)
     {
-        found_space = true;
-        input++;
+        if (*input == '\0')
+        {
+            break;
+        }
+        else if (isspace(*input))
+        {
+            found_space = true;
+            input++;
+        }
+        else if (input[0] == '/' && input[1] == '/') // Comments
+        {
+            while (*input != '\n' && *input != '\0')
+            {
+                input++;
+            }
+        }
+        else
+        {
+            break;
+        }
     }
 
     *new_input = input;
@@ -420,7 +439,7 @@ int main()
         "#include <stdio.h>\n"
         "#include \"my_file.h\"\n"
         "void my_func123()\n"
-        "{   \n"
+        "{ // this is a comment! \n"
         "    bool my_bool = true;\n"
         "    int my_int = -1234;\n"
         "    char my_char1 = '\\n';\n"
