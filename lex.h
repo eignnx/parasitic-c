@@ -78,7 +78,6 @@ bool starts_with(char *input, char *target, char **new_input)
 bool expect_space(char *input, char **new_input)
 {
     bool found_space = false;
-    bool inside_comment = false;
 
     while (true)
     {
