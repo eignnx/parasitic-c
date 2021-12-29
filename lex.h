@@ -1,4 +1,4 @@
-#include <stdio.h>   // printf, perror
+#include <stdio.h>   // printf, perror, fprintf_s, FILE
 #include <stdlib.h>  // exit
 #include <ctype.h>   // isalpha, isalnum, isspace, isdigit
 #include <string.h>  // strncpy_s
@@ -17,8 +17,17 @@ enum TokTag
     TOK_SEMI,
     TOK_EQUAL,
     TOK_STAR,
-    TOK_COMMA,
     TOK_AMPERSAND,
+    TOK_COMMA,       // ,
+    TOK_DOT,         // .
+    TOK_ARROW,       // ->
+    TOK_PLUS_PLUS,   // ++
+    TOK_EQUAL_EQUAL, // ==
+    TOK_NOT_EQUAL,   // !=
+    TOK_AND,         // &&
+    TOK_OR,          // ||
+    TOK_BANG,        // !
+    TOK_GT,          // >
 
     // LITERALS
     TOK_LITERAL_INT,
@@ -42,10 +51,70 @@ enum TokTag
     TOK_TRUE,
     TOK_FALSE,
     TOK_STRUCT,
+    TOK_ENUM,
+    TOK_UNION,
 
     // IDENTIFIER
     TOK_IDENT,
 };
+
+char *tok_tag_names[] = {
+    // SYMBOLS
+    "TOK_OPEN_PAREN",
+    "TOK_CLOSE_PAREN",
+    "TOK_OPEN_BRACE",
+    "TOK_CLOSE_BRACE",
+    "TOK_OPEN_BRACK",
+    "TOK_CLOSE_BRACK",
+    "TOK_POUND",
+    "TOK_SEMI",
+    "TOK_EQUAL",
+    "TOK_STAR",
+    "TOK_AMPERSAND",
+    "TOK_COMMA",       // ,
+    "TOK_DOT",         // .
+    "TOK_ARROW",       // ->
+    "TOK_PLUS_PLUS",   // ++
+    "TOK_EQUAL_EQUAL", // ==
+    "TOK_NOT_EQUAL",   // !=
+    "TOK_AND",         // &&
+    "TOK_OR",          // ||
+    "TOK_BANG",        // !
+    "TOK_GT",          // >
+
+    // LITERALS
+    "TOK_LITERAL_INT",
+    "TOK_LITERAL_CHAR",
+    "TOK_LITERAL_STRING",
+    "TOK_ANGLE_BRACK_FILENAME",
+
+    // KEYWORDS
+    "TOK_INT",
+    "TOK_CHAR",
+    "TOK_BOOL",
+    "TOK_VOID",
+    "TOK_INCLUDE",
+    "TOK_RETURN",
+    "TOK_IF",
+    "TOK_ELSE",
+    "TOK_WHILE",
+    "TOK_FOR",
+    "TOK_BREAK",
+    "TOK_CONTINUE",
+    "TOK_TRUE",
+    "TOK_FALSE",
+    "TOK_STRUCT",
+    "TOK_ENUM",
+    "TOK_UNION",
+
+    // IDENTIFIER
+    "TOK_IDENT",
+};
+
+int dbg_tok_tag(FILE *out, int tok_tag)
+{
+    return fprintf_s(out, "TOKEN %s", tok_tag_names[tok_tag]);
+}
 
 bool starts_with(char *input, char *target, char **new_input)
 {
@@ -341,16 +410,43 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_symbol(input, ";", TOK_SEMI, out_tok_typ, new_input))
         return true;
 
+    if (expect_symbol(input, "==", TOK_EQUAL_EQUAL, out_tok_typ, new_input))
+        return true;
+
     if (expect_symbol(input, "=", TOK_EQUAL, out_tok_typ, new_input))
         return true;
 
     if (expect_symbol(input, "*", TOK_STAR, out_tok_typ, new_input))
         return true;
 
+    if (expect_symbol(input, "&", TOK_AMPERSAND, out_tok_typ, new_input))
+        return true;
+
     if (expect_symbol(input, ",", TOK_COMMA, out_tok_typ, new_input))
         return true;
 
-    if (expect_symbol(input, "&", TOK_AMPERSAND, out_tok_typ, new_input))
+    if (expect_symbol(input, ".", TOK_DOT, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "->", TOK_ARROW, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "++", TOK_PLUS_PLUS, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "!=", TOK_NOT_EQUAL, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "&&", TOK_AND, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "||", TOK_OR, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "!", TOK_BANG, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, ">", TOK_GT, out_tok_typ, new_input))
         return true;
 
     if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
@@ -398,6 +494,12 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_keyword(input, "struct", TOK_STRUCT, out_tok_typ, old_input, new_input))
         return true;
 
+    if (expect_keyword(input, "enum", TOK_ENUM, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "union", TOK_UNION, out_tok_typ, old_input, new_input))
+        return true;
+
     if (expect_ident(input, &input, out_token))
     {
         *out_tok_typ = TOK_IDENT;
@@ -419,18 +521,16 @@ void lex_all_input(char *input)
 
     while (lex(input, &out_tok_typ, &token, &input))
     {
+        dbg_tok_tag(stdout, out_tok_typ);
         if (out_tok_typ == TOK_IDENT ||
             out_tok_typ == TOK_LITERAL_INT ||
             out_tok_typ == TOK_LITERAL_CHAR ||
             out_tok_typ == TOK_LITERAL_STRING ||
             out_tok_typ == TOK_ANGLE_BRACK_FILENAME)
         {
-            printf("Got Token #%d:\t\"%s\"\n", out_tok_typ, token);
+            printf("\n\t\"%s\"", token);
         }
-        else
-        {
-            printf("Got Token #%d\n", out_tok_typ);
-        }
+        printf("\n");
     }
     printf("End of input\n");
 }

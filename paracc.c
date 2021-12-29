@@ -95,4 +95,5 @@ int main()
         bool _ = dbg_ast_node(stdout, node);
     }
     printf("\n%s\n", "DONE!");
+    return 0;
 }
