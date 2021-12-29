@@ -4,49 +4,48 @@
 #include <string.h>  // strncpy_s
 #include <stdbool.h> // true, false, bool
 
-////////////////// <TOKEN> //////////////////////////
+enum TokTag
+{
+    // SYMBOLS
+    TOK_OPEN_PAREN,
+    TOK_CLOSE_PAREN,
+    TOK_OPEN_BRACE,
+    TOK_CLOSE_BRACE,
+    TOK_OPEN_BRACK,
+    TOK_CLOSE_BRACK,
+    TOK_POUND,
+    TOK_SEMI,
+    TOK_EQUAL,
+    TOK_STAR,
+    TOK_COMMA,
+    TOK_AMPERSAND,
 
-// SYMBOLS
-int TOK_OPEN_PAREN = 100;
-int TOK_CLOSE_PAREN = 101;
-int TOK_OPEN_BRACE = 102;
-int TOK_CLOSE_BRACE = 103;
-int TOK_OPEN_BRACK = 104;
-int TOK_CLOSE_BRACK = 105;
-int TOK_POUND = 106;
-int TOK_SEMI = 107;
-int TOK_EQUAL = 108;
-int TOK_STAR = 109;
-int TOK_COMMA = 110;
-int TOK_AMPERSAND = 111;
+    // LITERALS
+    TOK_LITERAL_INT,
+    TOK_LITERAL_CHAR,
+    TOK_LITERAL_STRING,
+    TOK_ANGLE_BRACK_FILENAME,
 
-// LITERALS
-int TOK_LITERAL_INT = 200;
-int TOK_LITERAL_CHAR = 201;
-int TOK_LITERAL_STRING = 202;
+    // KEYWORDS
+    TOK_INT,
+    TOK_CHAR,
+    TOK_BOOL,
+    TOK_VOID,
+    TOK_INCLUDE,
+    TOK_RETURN,
+    TOK_IF,
+    TOK_ELSE,
+    TOK_WHILE,
+    TOK_FOR,
+    TOK_BREAK,
+    TOK_CONTINUE,
+    TOK_TRUE,
+    TOK_FALSE,
+    TOK_STRUCT,
 
-// KEYWORDS
-int TOK_INT = 300;
-int TOK_CHAR = 301;
-int TOK_BOOL = 302;
-int TOK_VOID = 303;
-int TOK_INCLUDE = 304;
-int TOK_RETURN = 305;
-int TOK_IF = 306;
-int TOK_ELSE = 307;
-int TOK_WHILE = 308;
-int TOK_FOR = 309;
-int TOK_BREAK = 310;
-int TOK_CONTINUE = 311;
-int TOK_TRUE = 312;
-int TOK_FALSE = 313;
-int TOK_STRUCT = 314;
-
-// IDENTIFIER
-int TOK_IDENT = 400;
-int TOK_ANGLE_BRACK_FILENAME = 401;
-
-///////////////// </TOKEN> //////////////////////////
+    // IDENTIFIER
+    TOK_IDENT,
+};
 
 bool starts_with(char *input, char *target, char **new_input)
 {
