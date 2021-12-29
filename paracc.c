@@ -4,24 +4,51 @@
 
 // Parasitic C
 
+enum AstTag
+{
+    AST_LITERAL_INT,
+    AST_LITERAL_CHAR,
+};
+
+char *ast_tag_names[] = {
+    "AST_LITERAL_INT",
+    "AST_LITERAL_CHAR",
+};
+
+// Example use:
+// int x = my_ast_node.as.literal_int.value;
 struct AstNode
 {
-    int tok_typ;
+    enum AstTag tag;
+    union
+    {
+        struct
+        {
+            int value;
+        } literal_int;
+
+        struct
+        {
+            char *value;
+        } literal_char;
+    } as;
 };
 
-int AST_LITERAL_INT = 100;
-struct LiteralIntNode
+int dbg_ast_node(FILE *out, struct AstNode *node)
 {
-    struct AstNode ast;
-    int value;
-};
-
-int dbg_literal_int(FILE *out, struct LiteralIntNode *node)
-{
-    return fprintf_s(out, "%d", node->value);
+    switch (node->tag)
+    {
+    case AST_LITERAL_INT:
+        return fprintf_s(out, "%d", node->as.literal_int.value);
+    case AST_LITERAL_CHAR:
+        return fprintf_s(out, "'%s'", node->as.literal_char.value);
+    default:
+        perror("Invalid AstTag");
+        exit(1);
+    }
 }
 
-bool parse_literal_int(char *input, struct LiteralIntNode **node, char **new_input)
+bool parse_literal_int(char *input, struct AstNode **node, char **new_input)
 {
     int tok_typ;
     char *token;
@@ -31,24 +58,12 @@ bool parse_literal_int(char *input, struct LiteralIntNode **node, char **new_inp
         return false;
 
     *node = malloc(sizeof(**node));
-    (*node)->value = atoi(token);
-    (*node)->ast.tok_typ = AST_LITERAL_INT;
+    (*node)->tag = AST_LITERAL_INT;
+    (*node)->as.literal_int.value = atoi(token);
     return true;
 }
 
-int AST_LITERAL_CHAR = 101;
-struct LiteralCharNode
-{
-    struct AstNode ast;
-    char *value;
-};
-
-int dbg_literal_char(FILE *out, struct LiteralCharNode *node)
-{
-    return fprintf_s(out, "'%s'", node->value);
-}
-
-bool parse_literal_char(char *input, struct LiteralCharNode **node, char **new_input)
+bool parse_literal_char(char *input, struct AstNode **node, char **new_input)
 {
     int tok_typ;
     char *token;
@@ -58,31 +73,26 @@ bool parse_literal_char(char *input, struct LiteralCharNode **node, char **new_i
         return false;
 
     *node = malloc(sizeof(**node));
-    (*node)->value = token;
-    (*node)->ast.tok_typ = AST_LITERAL_CHAR;
+    (*node)->tag = AST_LITERAL_CHAR;
+    (*node)->as.literal_char.value = token;
     return true;
 }
 
 int main()
 {
     char *new_input;
+    struct AstNode *node;
 
+    if (parse_literal_int("-531", &node, &new_input))
     {
-        struct LiteralIntNode *node;
-        if (parse_literal_int("-531", &node, &new_input))
-        {
-            bool _ = dbg_literal_int(stdout, node);
-        }
+        bool _ = dbg_ast_node(stdout, node);
     }
 
     printf("\n");
 
+    if (parse_literal_char("'\\n'", &node, &new_input))
     {
-        struct LiteralCharNode *node;
-        if (parse_literal_char("'\\n'", &node, &new_input))
-        {
-            bool _ = dbg_literal_char(stdout, node);
-        }
+        bool _ = dbg_ast_node(stdout, node);
     }
     printf("\n%s\n", "DONE!");
 }
