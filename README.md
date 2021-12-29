@@ -33,3 +33,9 @@ void my_func123()
     char *my_str = "qwea sdf sgd \" \n rty";
 }
 ```
+
+## TODO
+- [X] Complete lexer
+- [-] Complete parser
+- [-] Output AST as C code
+- [-] Add new language features
