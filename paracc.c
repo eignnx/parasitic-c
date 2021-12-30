@@ -36,6 +36,8 @@ struct AstNode
 
 int dbg_ast_node(FILE *out, struct AstNode *node)
 {
+    fprintf_s(out, "%s: ", ast_tag_names[node->tag]);
+
     switch (node->tag)
     {
     case AST_LITERAL_INT:
@@ -94,6 +96,7 @@ int main()
     {
         bool _ = dbg_ast_node(stdout, node);
     }
+
     printf("\n%s\n", "DONE!");
     return 0;
 }
