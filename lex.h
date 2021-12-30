@@ -537,6 +537,29 @@ void lexer_set_input(char *new_input)
     input = new_input;
 }
 
+bool lexer_accept(enum TokTag tag)
+{
+    if (tok_tag == tag)
+    {
+        lexer_advance();
+        return true;
+    }
+    return false;
+}
+
+bool lexer_expect(enum TokTag tag)
+{
+    if (lexer_accept(tag))
+    {
+        return true;
+    }
+    else
+    {
+        perror("Unexpected token");
+        return false;
+    }
+}
+
 void lex_all_input(char *input)
 {
     int out_tok_typ = -123214;
