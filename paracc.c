@@ -1,34 +1,19 @@
 #include <stdio.h>  // fprintf_s, FILE, stdout
-#include <stdlib.h> // atoi, malloc
+#include <stdlib.h> // atoi, malloc, free
 #include "lex.h"    // lex, lex_all_input
 
 // Parasitic C
 
-enum AstTag
+struct Expr
 {
-    // Literals
-    AST_LITERAL_INT,
-    AST_LITERAL_CHAR,
-    AST_LITERAL_STRING,
-    AST_LITERAL_BOOL,
+    enum
+    {
+        EXPR_LITERAL_INT,
+        EXPR_LITERAL_CHAR,
+        EXPR_LITERAL_STRING,
+        EXPR_LITERAL_BOOL,
+    } tag;
 
-    // Top-level Items
-    AST_POUND_INCLUDE,
-};
-
-char *ast_tag_names[] = {
-    "AST_LITERAL_INT",
-    "AST_LITERAL_CHAR",
-    "AST_LITERAL_STRING",
-    "AST_LITERAL_BOOL",
-    "AST_POUND_INCLUDE",
-};
-
-// Example use:
-// int x = my_ast_node.as.literal_int.value;
-struct AstNode
-{
-    enum AstTag tag;
     union
     {
         struct
@@ -51,31 +36,77 @@ struct AstNode
             bool value;
         } literal_bool;
 
+    } as;
+};
+
+struct Type
+{
+    enum
+    {
+        // Atomic types
+        TYPE_INT,
+        TYPE_BOOL,
+        TYPE_CHAR,
+        TYPE_VOID,
+
+        // Compound types
+        // TYPE_PTR,
+        // TYPE_ARRAY,
+        // TYPE_STRUCT,
+        // TYPE_ENUM,
+        // TYPE_UNION,
+    } tag;
+
+    // union
+    // {
+    // } as;
+};
+
+// struct Stmt
+// {
+//     enum {} tag;
+//     union {} as;
+// };
+
+// Top-level declaration or compiler directive
+struct Item
+{
+    enum
+    {
+        ITEM_POUND_INCLUDE,
+    } tag;
+
+    union
+    {
         struct
         {
             char *filename;
             enum
             {
-                ANGLE_BRACKET_POUND_INCLUDE,
-                DOUBLE_QUOTE_POUND_INCLUDE,
+                POUND_INCLUDE_ANGLE_BRACKETS,
+                POUND_INCLUDE_DOUBLE_QUOTES,
             } kind;
         } pound_include;
 
+        // struct
+        // {
+        //     ...
+        // } fn_decl;
     } as;
 };
 
-int display_ast_node(FILE *out, struct AstNode *node)
+int display_expr(FILE *out, struct Expr *expr)
 {
-    switch (node->tag)
+    switch (expr->tag)
     {
-    case AST_LITERAL_INT:
-        return fprintf_s(out, "%d", node->as.literal_int.value);
-    case AST_LITERAL_CHAR:
-        return fprintf_s(out, "'%s'", node->as.literal_char.value);
-    case AST_LITERAL_STRING:
-        return fprintf_s(out, "\"%s\"", node->as.literal_string.value);
-    case AST_LITERAL_BOOL:
-        if (node->as.literal_bool.value)
+    case EXPR_LITERAL_INT:
+        return fprintf_s(out, "%d", expr->as.literal_int.value);
+    case EXPR_LITERAL_CHAR:
+        return fprintf_s(out, "'%s'", expr->as.literal_char.value);
+    case EXPR_LITERAL_STRING:
+        return fprintf_s(out, "\"%s\"", expr->as.literal_string.value);
+    case EXPR_LITERAL_BOOL:
+        if (expr->as.literal_bool.value)
         {
             return fprintf_s(out, "true");
         }
@@ -83,30 +114,54 @@ int display_ast_node(FILE *out, struct AstNode *node)
         {
             return fprintf_s(out, "false");
         }
-    case AST_POUND_INCLUDE:
-        fprintf_s(out, "#include ");
-        if (node->as.pound_include.kind == ANGLE_BRACKET_POUND_INCLUDE)
-        {
-            return fprintf_s(out, "<%s>", node->as.pound_include.filename);
-        }
-        else
-        {
-            return fprintf_s(out, "\"%s\"", node->as.pound_include.filename);
-        }
 
     default:
-        perror("Invalid AstTag");
+        perror("Invalid Expr tag");
         exit(1);
     }
 }
 
-int dbg_ast_node(FILE *out, struct AstNode *node)
+int display_type(FILE *out, struct Type *type)
 {
-    fprintf_s(out, "%s: ", ast_tag_names[node->tag]);
-    return display_ast_node(out, node);
+    switch (type->tag)
+    {
+    case TYPE_INT:
+        return fprintf_s(out, "int");
+    case TYPE_BOOL:
+        return fprintf_s(out, "bool");
+    case TYPE_CHAR:
+        return fprintf_s(out, "char");
+    case TYPE_VOID:
+        return fprintf_s(out, "void");
+    default:
+        perror("Invalid Type tag");
+        exit(1);
+    }
 }
 
-bool parse_literal_int(char *input, struct AstNode **node, char **new_input)
+int display_item(FILE *out, struct Item *item)
+{
+    switch (item->tag)
+    {
+    case ITEM_POUND_INCLUDE:
+        fprintf_s(out, "#include ");
+        if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
+        {
+            return fprintf_s(out, "<%s>", item->as.pound_include.filename);
+        }
+        else
+        {
+            return fprintf_s(out, "\"%s\"", item->as.pound_include.filename);
+        }
+    default:
+        perror("Invalid Item tag");
+        exit(1);
+    }
+}
+
+//////////////////////////// EXPRS ////////////////////////////////////////////
+
+bool parse_expr_literal_int(char *input, struct Expr **expr, char **new_input)
 {
     int tok_typ;
     char *token;
@@ -116,13 +171,13 @@ bool parse_literal_int(char *input, struct AstNode **node, char **new_input)
     if (!result || tok_typ != TOK_LITERAL_INT)
         return false;
 
-    *node = malloc(sizeof(**node));
-    (*node)->tag = AST_LITERAL_INT;
-    (*node)->as.literal_int.value = atoi(token);
+    *expr = malloc(sizeof(**expr));
+    (*expr)->tag = EXPR_LITERAL_INT;
+    (*expr)->as.literal_int.value = atoi(token);
     return true;
 }
 
-bool parse_literal_char(char *input, struct AstNode **node, char **new_input)
+bool parse_expr_literal_char(char *input, struct Expr **expr, char **new_input)
 {
     int tok_typ;
     char *token;
@@ -132,13 +187,13 @@ bool parse_literal_char(char *input, struct AstNode **node, char **new_input)
     if (!result || tok_typ != TOK_LITERAL_CHAR)
         return false;
 
-    *node = malloc(sizeof(**node));
-    (*node)->tag = AST_LITERAL_CHAR;
-    (*node)->as.literal_char.value = token;
+    *expr = malloc(sizeof(**expr));
+    (*expr)->tag = EXPR_LITERAL_CHAR;
+    (*expr)->as.literal_char.value = token;
     return true;
 }
 
-bool parse_literal_string(char *input, struct AstNode **node, char **new_input)
+bool parse_expr_literal_string(char *input, struct Expr **expr, char **new_input)
 {
     int tok_tag;
     char *token;
@@ -148,13 +203,13 @@ bool parse_literal_string(char *input, struct AstNode **node, char **new_input)
     if (!result || tok_tag != TOK_LITERAL_STRING)
         return false;
 
-    *node = malloc(sizeof(**node));
-    (*node)->tag = AST_LITERAL_STRING;
-    (*node)->as.literal_string.value = token;
+    *expr = malloc(sizeof(**expr));
+    (*expr)->tag = EXPR_LITERAL_STRING;
+    (*expr)->as.literal_string.value = token;
     return true;
 }
 
-bool parse_literal_bool(char *input, struct AstNode **node, char **new_input)
+bool parse_expr_literal_bool(char *input, struct Expr **expr, char **new_input)
 {
     int tok_tag;
     char *token;
@@ -163,16 +218,16 @@ bool parse_literal_bool(char *input, struct AstNode **node, char **new_input)
 
     if (result && (tok_tag == TOK_TRUE || tok_tag == TOK_FALSE))
     {
-        *node = malloc(sizeof(**node));
-        (*node)->tag = AST_LITERAL_BOOL;
+        *expr = malloc(sizeof(**expr));
+        (*expr)->tag = EXPR_LITERAL_BOOL;
 
         if (tok_tag == TOK_TRUE)
         {
-            (*node)->as.literal_bool.value = true;
+            (*expr)->as.literal_bool.value = true;
         }
         else
         {
-            (*node)->as.literal_bool.value = false;
+            (*expr)->as.literal_bool.value = false;
         }
 
         return true;
@@ -181,7 +236,51 @@ bool parse_literal_bool(char *input, struct AstNode **node, char **new_input)
     return false;
 }
 
-bool parse_pound_include(char *input, struct AstNode **node, char **new_input)
+//////////////////////////// TYPES ////////////////////////////////////////////
+
+bool parse_atomic_type(char *input, struct Type **type, char **new_input)
+{
+    int tok_tag;
+    char *token;
+    bool result;
+
+    *new_input = input;
+
+    result = lex(*new_input, &tok_tag, &token, new_input);
+
+    if (!result)
+        return false;
+
+    *type = malloc(sizeof(**type));
+
+    switch (tok_tag)
+    {
+    case TOK_INT:
+        (*type)->tag = TYPE_INT;
+        return true;
+    case TOK_BOOL:
+        (*type)->tag = TYPE_BOOL;
+        return true;
+    case TOK_CHAR:
+        (*type)->tag = TYPE_CHAR;
+        return true;
+    case TOK_VOID:
+        (*type)->tag = TYPE_VOID;
+        return true;
+
+    default:
+        free(*type);
+        return false;
+    }
+}
+
+//////////////////////////// STMTS ////////////////////////////////////////////
+
+// TODO
+
+//////////////////////////// ITEMS ////////////////////////////////////////////
+
+bool parse_item_pound_include(char *input, struct Item **item, char **new_input)
 {
     int tok_tag;
     char *token;
@@ -203,14 +302,14 @@ bool parse_pound_include(char *input, struct AstNode **node, char **new_input)
 
     if (result && (tok_tag == TOK_ANGLE_BRACK_FILENAME || tok_tag == TOK_LITERAL_STRING))
     {
-        *node = malloc(sizeof(**node));
-        (*node)->tag = AST_POUND_INCLUDE;
-        (*node)->as.pound_include.filename = token;
+        *item = malloc(sizeof(**item));
+        (*item)->tag = ITEM_POUND_INCLUDE;
+        (*item)->as.pound_include.filename = token;
 
         if (tok_tag == TOK_ANGLE_BRACK_FILENAME)
-            (*node)->as.pound_include.kind = ANGLE_BRACKET_POUND_INCLUDE;
+            (*item)->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
         else
-            (*node)->as.pound_include.kind = DOUBLE_QUOTE_POUND_INCLUDE;
+            (*item)->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
 
         return true;
     }
@@ -218,44 +317,108 @@ bool parse_pound_include(char *input, struct AstNode **node, char **new_input)
     return false;
 }
 
-int main()
+///////////////////////////////////////////////////////////////////////////////
+
+void test_parse_expr()
 {
     char *new_input;
-    struct AstNode *node;
-
-    if (parse_literal_int("-531", &node, &new_input))
-        dbg_ast_node(stdout, node);
+    struct Expr *expr;
 
     printf("\n");
-
-    if (parse_literal_char("'\\n'", &node, &new_input))
-        dbg_ast_node(stdout, node);
-
-    printf("\n");
-
-    if (parse_literal_string("\"aldjsfhkjasd kfjh\"", &node, &new_input))
-        dbg_ast_node(stdout, node);
+    if (parse_expr_literal_int("-531", &expr, &new_input))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
 
     printf("\n");
-
-    if (parse_literal_bool("true", &node, &new_input))
-        dbg_ast_node(stdout, node);
-
-    printf("\n");
-
-    if (parse_literal_bool("false", &node, &new_input))
-        dbg_ast_node(stdout, node);
+    if (parse_expr_literal_char("'\\n'", &expr, &new_input))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
 
     printf("\n");
-
-    if (parse_pound_include("#include <stdio.h>", &node, &new_input))
-        dbg_ast_node(stdout, node);
+    if (parse_expr_literal_string("\"asldjfhl ds \\n ajsdf\"", &expr, &new_input))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
 
     printf("\n");
+    if (parse_expr_literal_bool("true", &expr, &new_input))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
 
-    if (parse_pound_include("#include \"stdio.h\"", &node, &new_input))
-        dbg_ast_node(stdout, node);
+    printf("\n");
+    if (parse_expr_literal_bool("false", &expr, &new_input))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+}
 
-    printf("\n%s\n", "DONE!");
+void test_parse_types()
+{
+    char *new_input;
+    struct Type *type;
+
+    printf("\n");
+    if (parse_atomic_type("int", &type, &new_input))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    if (parse_atomic_type("bool", &type, &new_input))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    if (parse_atomic_type("char", &type, &new_input))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    if (parse_atomic_type("void", &type, &new_input))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+}
+
+void test_parse_stmts()
+{
+}
+
+void test_parse_items()
+{
+    char *new_input;
+    struct Item *item;
+
+    printf("\n");
+    if (parse_item_pound_include("#include <stdio.h>", &item, &new_input))
+        display_item(stdout, item);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    if (parse_item_pound_include("#include \"stdio.h\"", &item, &new_input))
+        display_item(stdout, item);
+    else
+        perror("TEST FAILED");
+}
+
+void test_parser()
+{
+    printf("%s\n", "Running parser tests...");
+    test_parse_expr();
+    test_parse_types();
+    test_parse_stmts();
+    test_parse_items();
+    printf("\n\n%s\n", "Tests finished!");
+}
+
+int main()
+{
+    test_parser();
     return 0;
 }
