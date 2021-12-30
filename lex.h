@@ -56,6 +56,9 @@ enum TokTag
 
     // IDENTIFIER
     TOK_IDENT,
+
+    // Special
+    TOK_END_OF_INPUT, // $
 };
 
 char *tok_tag_names[] = {
@@ -109,7 +112,16 @@ char *tok_tag_names[] = {
 
     // IDENTIFIER
     "TOK_IDENT",
+
+    // Special
+    "TOK_END_OF_INPUT",
 };
+
+enum TokTag tok_tag; // The TokTag of the current token.
+char *token;         // The text of the current token (if relevent).
+char *input;         // A pointer to the current location in the source code.
+
+void advance_lexer();
 
 int dbg_tok_tag(FILE *out, int tok_tag)
 {
@@ -369,6 +381,7 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (allow_whitespace(input, &input))
     {
         *new_input = input;
+        *out_tok_typ = TOK_END_OF_INPUT;
         return false;
     }
 
@@ -513,26 +526,38 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     exit(1);
 }
 
+// Mutates global state of the lexer.
+void lexer_advance()
+{
+    lex(input, &tok_tag, &token, &input);
+}
+
+void lexer_set_input(char *new_input)
+{
+    input = new_input;
+}
+
 void lex_all_input(char *input)
 {
     int out_tok_typ = -123214;
     char *new_input = "<EMPTY INPUT>";
     char *token = "<EMPTY TOKEN>";
 
-    while (lex(input, &out_tok_typ, &token, &input))
+    do
     {
+        lex(input, &out_tok_typ, &token, &input);
+
         dbg_tok_tag(stdout, out_tok_typ);
+
         if (out_tok_typ == TOK_IDENT ||
             out_tok_typ == TOK_LITERAL_INT ||
             out_tok_typ == TOK_LITERAL_CHAR ||
             out_tok_typ == TOK_LITERAL_STRING ||
             out_tok_typ == TOK_ANGLE_BRACK_FILENAME)
-        {
             printf("\n\t\"%s\"", token);
-        }
+
         printf("\n");
-    }
-    printf("End of input\n");
+    } while (out_tok_typ != TOK_END_OF_INPUT);
 }
 
 void test_lexer()
