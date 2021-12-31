@@ -163,59 +163,82 @@ int display_item(FILE *out, struct Item *item)
 
 struct Expr *parse_expr_literal_int(struct Lexer *lxr)
 {
-    if (lexer_accept(lxr, TOK_LITERAL_INT))
-    {
-        struct Expr *expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_LITERAL_INT;
-        expr->as.literal_int.value = atoi(lxr->token);
-        return expr;
-    }
-    return NULL;
+    if (!lexer_accept(lxr, TOK_LITERAL_INT))
+        return NULL;
+
+    struct Expr *expr = malloc(sizeof(*expr));
+    expr->tag = EXPR_LITERAL_INT;
+    expr->as.literal_int.value = atoi(lxr->token);
+    return expr;
 }
 
 struct Expr *parse_expr_literal_char(struct Lexer *lxr)
 {
-    if (lexer_accept(lxr, TOK_LITERAL_CHAR))
-    {
-        struct Expr *expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_LITERAL_CHAR;
-        expr->as.literal_char.value = lxr->token;
-        return expr;
-    }
-    return NULL;
+    if (!lexer_accept(lxr, TOK_LITERAL_CHAR))
+        return NULL;
+
+    struct Expr *expr = malloc(sizeof(*expr));
+    expr->tag = EXPR_LITERAL_CHAR;
+    expr->as.literal_char.value = lxr->token;
+    return expr;
 }
 
 struct Expr *parse_expr_literal_string(struct Lexer *lxr)
 {
-    if (lexer_accept(lxr, TOK_LITERAL_STRING))
-    {
-        struct Expr *expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_LITERAL_STRING;
-        expr->as.literal_string.value = lxr->token;
-        return expr;
-    }
-    return NULL;
+    if (!lexer_accept(lxr, TOK_LITERAL_STRING))
+        return NULL;
+
+    struct Expr *expr = malloc(sizeof(*expr));
+    expr->tag = EXPR_LITERAL_STRING;
+    expr->as.literal_string.value = lxr->token;
+    return expr;
 }
 
 struct Expr *parse_expr_literal_bool(struct Lexer *lxr)
 {
+    if (!(lxr->next_tok_tag == TOK_TRUE || lxr->next_tok_tag == TOK_FALSE))
+        return NULL;
+
     lexer_advance(lxr);
+    struct Expr *expr = malloc(sizeof(*expr));
+    expr->tag = EXPR_LITERAL_BOOL;
+    expr->as.literal_bool.value = (lxr->tok_tag == TOK_TRUE);
+    return expr;
+}
 
-    if (lxr->tok_tag == TOK_TRUE || lxr->tok_tag == TOK_FALSE)
-    {
-        struct Expr *expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_LITERAL_BOOL;
-        expr->as.literal_bool.value = (lxr->tok_tag == TOK_TRUE);
+struct Expr *parse_expr(struct Lexer *lxr)
+{
+    struct Expr *expr;
+
+    if ((expr = parse_expr_literal_int(lxr)))
         return expr;
-    }
 
+    if ((expr = parse_expr_literal_bool(lxr)))
+        return expr;
+
+    if ((expr = parse_expr_literal_char(lxr)))
+        return expr;
+
+    if ((expr = parse_expr_literal_string(lxr)))
+        return expr;
+
+    perror("Expected expression, but none was found");
     return NULL;
 }
 
 //////////////////////////// TYPES ////////////////////////////////////////////
 
+struct Type *parse_type(struct Lexer *);
+struct Type *parse_type_ptr(struct Lexer *);
+
 struct Type *parse_atomic_type(struct Lexer *lxr)
 {
+    if (!(lxr->next_tok_tag == TOK_INT ||
+          lxr->next_tok_tag == TOK_BOOL ||
+          lxr->next_tok_tag == TOK_CHAR ||
+          lxr->next_tok_tag == TOK_VOID))
+        return NULL;
+
     lexer_advance(lxr);
 
     struct Type *type = malloc(sizeof(*type));
@@ -224,21 +247,23 @@ struct Type *parse_atomic_type(struct Lexer *lxr)
     {
     case TOK_INT:
         type->tag = TYPE_INT;
-        return type;
+        break;
     case TOK_BOOL:
         type->tag = TYPE_BOOL;
-        return type;
+        break;
     case TOK_CHAR:
         type->tag = TYPE_CHAR;
-        return type;
+        break;
     case TOK_VOID:
         type->tag = TYPE_VOID;
-        return type;
+        break;
 
     default:
-        free(type);
+        perror("unreachable");
         return NULL;
     }
+
+    return type;
 }
 
 //////////////////////////// STMTS ////////////////////////////////////////////
@@ -280,35 +305,35 @@ void test_parse_expr()
 
     printf("\n");
     lxr = lexer_init("-531");
-    if ((expr = parse_expr_literal_int(&lxr)))
+    if ((expr = parse_expr(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  '\\n'   ");
-    if ((expr = parse_expr_literal_char(&lxr)))
+    if ((expr = parse_expr(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
-    if ((expr = parse_expr_literal_string(&lxr)))
+    if ((expr = parse_expr(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  true ");
-    if ((expr = parse_expr_literal_bool(&lxr)))
+    if ((expr = parse_expr(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  false ");
-    if ((expr = parse_expr_literal_bool(&lxr)))
+    if ((expr = parse_expr(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
