@@ -161,7 +161,7 @@ int display_item(FILE *out, struct Item *item)
 
 //////////////////////////// EXPRS ////////////////////////////////////////////
 
-struct Expr *parse_expr_literal_int_new(struct Lexer *lxr)
+struct Expr *parse_expr_literal_int(struct Lexer *lxr)
 {
     if (lexer_accept(lxr, TOK_LITERAL_INT))
     {
@@ -173,125 +173,71 @@ struct Expr *parse_expr_literal_int_new(struct Lexer *lxr)
     return NULL;
 }
 
-void test_new_parsing_method()
+struct Expr *parse_expr_literal_char(struct Lexer *lxr)
 {
-    struct Lexer lxr = lexer_init("   -1234   adslfhir lskdj");
-    struct Expr *expr = parse_expr_literal_int_new(&lxr);
-    if (expr == NULL)
-        printf("NULL expr\n");
-    display_expr(stdout, expr);
-}
-
-bool parse_expr_literal_int(char *input, struct Expr **expr, char **new_input)
-{
-    int tok_typ;
-    char *token;
-
-    bool result = lex(input, &tok_typ, &token, new_input);
-
-    if (!result || tok_typ != TOK_LITERAL_INT)
-        return false;
-
-    *expr = malloc(sizeof(**expr));
-    (*expr)->tag = EXPR_LITERAL_INT;
-    (*expr)->as.literal_int.value = atoi(token);
-    return true;
-}
-
-bool parse_expr_literal_char(char *input, struct Expr **expr, char **new_input)
-{
-    int tok_typ;
-    char *token;
-
-    bool result = lex(input, &tok_typ, &token, new_input);
-
-    if (!result || tok_typ != TOK_LITERAL_CHAR)
-        return false;
-
-    *expr = malloc(sizeof(**expr));
-    (*expr)->tag = EXPR_LITERAL_CHAR;
-    (*expr)->as.literal_char.value = token;
-    return true;
-}
-
-bool parse_expr_literal_string(char *input, struct Expr **expr, char **new_input)
-{
-    int tok_tag;
-    char *token;
-
-    bool result = lex(input, &tok_tag, &token, new_input);
-
-    if (!result || tok_tag != TOK_LITERAL_STRING)
-        return false;
-
-    *expr = malloc(sizeof(**expr));
-    (*expr)->tag = EXPR_LITERAL_STRING;
-    (*expr)->as.literal_string.value = token;
-    return true;
-}
-
-bool parse_expr_literal_bool(char *input, struct Expr **expr, char **new_input)
-{
-    int tok_tag;
-    char *token;
-
-    bool result = lex(input, &tok_tag, &token, new_input);
-
-    if (result && (tok_tag == TOK_TRUE || tok_tag == TOK_FALSE))
+    if (lexer_accept(lxr, TOK_LITERAL_CHAR))
     {
-        *expr = malloc(sizeof(**expr));
-        (*expr)->tag = EXPR_LITERAL_BOOL;
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_CHAR;
+        expr->as.literal_char.value = lxr->token;
+        return expr;
+    }
+    return NULL;
+}
 
-        if (tok_tag == TOK_TRUE)
-        {
-            (*expr)->as.literal_bool.value = true;
-        }
-        else
-        {
-            (*expr)->as.literal_bool.value = false;
-        }
+struct Expr *parse_expr_literal_string(struct Lexer *lxr)
+{
+    if (lexer_accept(lxr, TOK_LITERAL_STRING))
+    {
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_STRING;
+        expr->as.literal_string.value = lxr->token;
+        return expr;
+    }
+    return NULL;
+}
 
-        return true;
+struct Expr *parse_expr_literal_bool(struct Lexer *lxr)
+{
+    lexer_advance(lxr);
+
+    if (lxr->tok_tag == TOK_TRUE || lxr->tok_tag == TOK_FALSE)
+    {
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_BOOL;
+        expr->as.literal_bool.value = (lxr->tok_tag == TOK_TRUE);
+        return expr;
     }
 
-    return false;
+    return NULL;
 }
 
 //////////////////////////// TYPES ////////////////////////////////////////////
 
-bool parse_atomic_type(char *input, struct Type **type, char **new_input)
+struct Type *parse_atomic_type(struct Lexer *lxr)
 {
-    int tok_tag;
-    char *token;
-    bool result;
+    lexer_advance(lxr);
 
-    *new_input = input;
+    struct Type *type = malloc(sizeof(*type));
 
-    result = lex(*new_input, &tok_tag, &token, new_input);
-
-    if (!result)
-        return false;
-
-    *type = malloc(sizeof(**type));
-
-    switch (tok_tag)
+    switch (lxr->tok_tag)
     {
     case TOK_INT:
-        (*type)->tag = TYPE_INT;
-        return true;
+        type->tag = TYPE_INT;
+        return type;
     case TOK_BOOL:
-        (*type)->tag = TYPE_BOOL;
-        return true;
+        type->tag = TYPE_BOOL;
+        return type;
     case TOK_CHAR:
-        (*type)->tag = TYPE_CHAR;
-        return true;
+        type->tag = TYPE_CHAR;
+        return type;
     case TOK_VOID:
-        (*type)->tag = TYPE_VOID;
-        return true;
+        type->tag = TYPE_VOID;
+        return type;
 
     default:
-        free(*type);
-        return false;
+        free(type);
+        return NULL;
     }
 }
 
@@ -301,76 +247,68 @@ bool parse_atomic_type(char *input, struct Type **type, char **new_input)
 
 //////////////////////////// ITEMS ////////////////////////////////////////////
 
-bool parse_item_pound_include(char *input, struct Item **item, char **new_input)
+struct Item *parse_item_pound_include(struct Lexer *lxr)
 {
-    int tok_tag;
-    char *token;
-    bool result;
+    if (!lexer_accept(lxr, TOK_POUND))
+        return NULL;
 
-    *new_input = input;
+    if (!lexer_expect(lxr, TOK_INCLUDE))
+        return NULL;
 
-    result = lex(*new_input, &tok_tag, &token, new_input);
+    lexer_advance(lxr);
+    if (lxr->tok_tag != TOK_ANGLE_BRACK_FILENAME && lxr->tok_tag != TOK_LITERAL_STRING)
+        return NULL;
 
-    if (!result || tok_tag != TOK_POUND)
-        return false;
+    struct Item *item = malloc(sizeof(*item));
+    item->tag = ITEM_POUND_INCLUDE;
+    item->as.pound_include.filename = lxr->token;
 
-    result = lex(*new_input, &tok_tag, &token, new_input);
+    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
+        item->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
+    else
+        item->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
 
-    if (!result || tok_tag != TOK_INCLUDE)
-        return false;
-
-    result = lex(*new_input, &tok_tag, &token, new_input);
-
-    if (result && (tok_tag == TOK_ANGLE_BRACK_FILENAME || tok_tag == TOK_LITERAL_STRING))
-    {
-        *item = malloc(sizeof(**item));
-        (*item)->tag = ITEM_POUND_INCLUDE;
-        (*item)->as.pound_include.filename = token;
-
-        if (tok_tag == TOK_ANGLE_BRACK_FILENAME)
-            (*item)->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
-        else
-            (*item)->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
-
-        return true;
-    }
-
-    return false;
+    return item;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 void test_parse_expr()
 {
-    char *new_input;
+    struct Lexer lxr;
     struct Expr *expr;
 
     printf("\n");
-    if (parse_expr_literal_int("-531", &expr, &new_input))
+    lxr = lexer_init("-531");
+    if ((expr = parse_expr_literal_int(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_expr_literal_char("'\\n'", &expr, &new_input))
+    lxr = lexer_init("  '\\n'   ");
+    if ((expr = parse_expr_literal_char(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_expr_literal_string("\"asldjfhl ds \\n ajsdf\"", &expr, &new_input))
+    lxr = lexer_init("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
+    if ((expr = parse_expr_literal_string(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_expr_literal_bool("true", &expr, &new_input))
+    lxr = lexer_init("  true ");
+    if ((expr = parse_expr_literal_bool(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_expr_literal_bool("false", &expr, &new_input))
+    lxr = lexer_init("  false ");
+    if ((expr = parse_expr_literal_bool(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
@@ -378,29 +316,33 @@ void test_parse_expr()
 
 void test_parse_types()
 {
-    char *new_input;
+    struct Lexer lxr;
     struct Type *type;
 
     printf("\n");
-    if (parse_atomic_type("int", &type, &new_input))
+    lxr = lexer_init("  int  ");
+    if ((type = parse_atomic_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_atomic_type("bool", &type, &new_input))
+    lxr = lexer_init("  bool  ");
+    if ((type = parse_atomic_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_atomic_type("char", &type, &new_input))
+    lxr = lexer_init("  char  ");
+    if ((type = parse_atomic_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_atomic_type("void", &type, &new_input))
+    lxr = lexer_init("  void  ");
+    if ((type = parse_atomic_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
@@ -412,17 +354,19 @@ void test_parse_stmts()
 
 void test_parse_items()
 {
-    char *new_input;
+    struct Lexer lxr;
     struct Item *item;
 
     printf("\n");
-    if (parse_item_pound_include("#include <stdio.h>", &item, &new_input))
+    lxr = lexer_init("  #include <stdio.h>  ");
+    if ((item = parse_item_pound_include(&lxr)))
         display_item(stdout, item);
     else
         perror("TEST FAILED");
 
     printf("\n");
-    if (parse_item_pound_include("#include \"stdio.h\"", &item, &new_input))
+    lxr = lexer_init("  #include \"my_file.h\"  ");
+    if ((item = parse_item_pound_include(&lxr)))
         display_item(stdout, item);
     else
         perror("TEST FAILED");
@@ -440,8 +384,8 @@ void test_parser()
 
 int main()
 {
-    //test_parser();
+    test_parser();
     // test_lexer();
-    test_new_parsing_method();
+    // test_new_parsing_method();
     return 0;
 }
