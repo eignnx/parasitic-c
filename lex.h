@@ -117,10 +117,6 @@ char *tok_tag_names[] = {
     "TOK_END_OF_INPUT",
 };
 
-enum TokTag tok_tag; // The TokTag of the current token.
-char *token;         // The text of the current token (if relevent).
-char *input;         // A pointer to the current location in the source code.
-
 void advance_lexer();
 
 int dbg_tok_tag(FILE *out, int tok_tag)
@@ -190,7 +186,7 @@ bool expect_space(char *input, char **new_input)
 // Returns `true` if at end of input.
 bool allow_whitespace(char *input, char **new_input)
 {
-    bool _ = expect_space(input, new_input);
+    expect_space(input, new_input);
     return **new_input == '\0';
 }
 
@@ -526,30 +522,57 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     exit(1);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+struct Lexer
+{
+    enum TokTag tok_tag;      // The TokTag of the current token.
+    enum TokTag next_tok_tag; // The TokTag of the next token.
+    char *token;              // The text of the current token (if relevent).
+    char *next_token;         // The text of the next token (if relevent).
+    char *input;              // A pointer to the current location in the source code.
+};
+
 // Mutates global state of the lexer.
-void lexer_advance()
+void lexer_advance(struct Lexer *lxr)
 {
-    lex(input, &tok_tag, &token, &input);
+    lxr->token = lxr->next_token;
+    lxr->tok_tag = lxr->next_tok_tag;
+    lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token, &lxr->input);
 }
 
-void lexer_set_input(char *new_input)
+struct Lexer lexer_init(char *new_input)
 {
-    input = new_input;
+    struct Lexer lxr;
+
+    lxr.tok_tag = -1;
+    lxr.next_tok_tag = -1;
+    lxr.token = NULL;
+    lxr.next_token = NULL;
+    lxr.input = new_input;
+
+    lexer_advance(&lxr);
+
+    return lxr;
 }
 
-bool lexer_accept(enum TokTag tag)
+// Advanced lexer input if the token tag matches.
+bool lexer_accept(struct Lexer *lxr, enum TokTag tag)
 {
-    if (tok_tag == tag)
+    // NOTE: we check against `next_tok_tag` (NOT `tok_tag`) in order to set up
+    // `tok_tag` for calling code after `lexer_advance` is called here.
+    if (lxr->next_tok_tag == tag)
     {
-        lexer_advance();
+        lexer_advance(lxr);
         return true;
     }
     return false;
 }
 
-bool lexer_expect(enum TokTag tag)
+// Advanced lexer input if the token tag matches.
+bool lexer_expect(struct Lexer *lxr, enum TokTag tag)
 {
-    if (lexer_accept(tag))
+    if (lexer_accept(lxr, tag))
     {
         return true;
     }
@@ -563,7 +586,6 @@ bool lexer_expect(enum TokTag tag)
 void lex_all_input(char *input)
 {
     int out_tok_typ = -123214;
-    char *new_input = "<EMPTY INPUT>";
     char *token = "<EMPTY TOKEN>";
 
     do

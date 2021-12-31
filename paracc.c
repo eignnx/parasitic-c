@@ -161,6 +161,27 @@ int display_item(FILE *out, struct Item *item)
 
 //////////////////////////// EXPRS ////////////////////////////////////////////
 
+struct Expr *parse_expr_literal_int_new(struct Lexer *lxr)
+{
+    if (lexer_accept(lxr, TOK_LITERAL_INT))
+    {
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_INT;
+        expr->as.literal_int.value = atoi(lxr->token);
+        return expr;
+    }
+    return NULL;
+}
+
+void test_new_parsing_method()
+{
+    struct Lexer lxr = lexer_init("   -1234   adslfhir lskdj");
+    struct Expr *expr = parse_expr_literal_int_new(&lxr);
+    if (expr == NULL)
+        printf("NULL expr\n");
+    display_expr(stdout, expr);
+}
+
 bool parse_expr_literal_int(char *input, struct Expr **expr, char **new_input)
 {
     int tok_typ;
@@ -419,6 +440,8 @@ void test_parser()
 
 int main()
 {
-    test_parser();
+    //test_parser();
+    // test_lexer();
+    test_new_parsing_method();
     return 0;
 }
