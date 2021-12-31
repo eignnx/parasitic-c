@@ -586,7 +586,7 @@ bool lexer_expect(struct Lexer *lxr, enum TokTag tag)
         printf("UNEXPECTED TOKEN:\n\texpected %s, got %s\n",
                tok_tag_names[tag],
                tok_tag_names[lxr->next_tok_tag]);
-        return false;
+        exit(1);
     }
 }
 
