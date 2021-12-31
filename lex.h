@@ -50,6 +50,7 @@ enum TokTag
     TOK_CONTINUE,
     TOK_TRUE,
     TOK_FALSE,
+    TOK_SIZEOF,
     TOK_STRUCT,
     TOK_ENUM,
     TOK_UNION,
@@ -106,6 +107,7 @@ char *tok_tag_names[] = {
     "TOK_CONTINUE",
     "TOK_TRUE",
     "TOK_FALSE",
+    "TOK_SIZEOF",
     "TOK_STRUCT",
     "TOK_ENUM",
     "TOK_UNION",
@@ -500,6 +502,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_keyword(input, "false", TOK_FALSE, out_tok_typ, old_input, new_input))
         return true;
 
+    if (expect_keyword(input, "sizeof", TOK_SIZEOF, out_tok_typ, old_input, new_input))
+        return true;
+
     if (expect_keyword(input, "struct", TOK_STRUCT, out_tok_typ, old_input, new_input))
         return true;
 
@@ -618,7 +623,7 @@ void test_lexer()
         "void my_func123()\n"
         "{ // this is a comment! \n"
         "    bool my_bool = true;\n"
-        "    int my_int = -1234;\n"
+        "    int my_int = sizeof(-1234);\n"
         "    char my_char1 = '\\n';\n"
         "    char my_char2 = 'A';\n"
         "    char my_char3 = '\\'';\n"
