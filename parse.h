@@ -228,9 +228,6 @@ struct Expr *parse_expr(struct Lexer *lxr)
 
 //////////////////////////// TYPES ////////////////////////////////////////////
 
-struct Type *parse_type(struct Lexer *);
-struct Type *parse_type_ptr(struct Lexer *);
-
 struct Type *parse_atomic_type(struct Lexer *lxr)
 {
     if (!(lxr->next_tok_tag == TOK_INT ||
@@ -280,9 +277,10 @@ struct Item *parse_item_pound_include(struct Lexer *lxr)
     if (!lexer_expect(lxr, TOK_INCLUDE))
         return NULL;
 
-    lexer_advance(lxr);
-    if (lxr->tok_tag != TOK_ANGLE_BRACK_FILENAME && lxr->tok_tag != TOK_LITERAL_STRING)
+    if (lxr->next_tok_tag != TOK_ANGLE_BRACK_FILENAME && lxr->next_tok_tag != TOK_LITERAL_STRING)
         return NULL;
+
+    lexer_advance(lxr);
 
     struct Item *item = malloc(sizeof(*item));
     item->tag = ITEM_POUND_INCLUDE;
