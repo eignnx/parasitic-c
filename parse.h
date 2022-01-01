@@ -12,6 +12,8 @@ struct Expr
         EXPR_LITERAL_CHAR,
         EXPR_LITERAL_STRING,
         EXPR_LITERAL_BOOL,
+        EXPR_IDENT,
+        EXPR_ARR_INDEX,
     } tag;
 
     union
@@ -35,6 +37,17 @@ struct Expr
         {
             bool value;
         } literal_bool;
+
+        struct
+        {
+            char *value;
+        } ident;
+
+        struct
+        {
+            struct Expr *arr;
+            struct Expr *index;
+        } arr_index;
 
     } as;
 };
@@ -114,7 +127,13 @@ int display_expr(FILE *out, struct Expr *expr)
         {
             return fprintf_s(out, "false");
         }
-
+    case EXPR_IDENT:
+        return fprintf_s(out, "%s", expr->as.ident.value);
+    case EXPR_ARR_INDEX:
+        return display_expr(out, expr->as.arr_index.arr) &&
+               fprintf_s(out, "[") &&
+               display_expr(out, expr->as.arr_index.index) &&
+               fprintf_s(out, "]");
     default:
         perror("Invalid Expr tag");
         exit(1);
@@ -206,7 +225,7 @@ struct Expr *parse_expr_literal_bool(struct Lexer *lxr)
     return expr;
 }
 
-struct Expr *parse_expr(struct Lexer *lxr)
+struct Expr *parse_constant_or_string_expr(struct Lexer *lxr)
 {
     struct Expr *expr;
 
@@ -223,6 +242,86 @@ struct Expr *parse_expr(struct Lexer *lxr)
         return expr;
 
     perror("Expected expression, but none was found");
+    return NULL;
+}
+
+struct Expr *parse_expression(struct Lexer *lxr)
+{
+    return parse_primary_expression(lxr);
+}
+
+/*
+primary_expression
+	: IDENTIFIER
+	| CONSTANT
+	| STRING_LITERAL
+	| '(' expression ')'
+	;
+*/
+struct Expr *parse_primary_expression(struct Lexer *lxr)
+{
+    struct Expr *expr;
+
+    if (lexer_accept(lxr, TOK_IDENT))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_IDENT;
+        expr->as.ident.value = lxr->token;
+        return expr;
+    }
+    if ((expr = parse_constant_or_string_expr(lxr)))
+    {
+        return expr;
+    }
+    if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
+        (expr = parse_expression(lxr)) &&
+        lexer_expect(lxr, TOK_CLOSE_PAREN))
+    {
+        return expr;
+    }
+    return NULL;
+}
+
+/*
+postfix_expression
+	: primary_expression
+	| postfix_expression '[' expression ']'
+	| postfix_expression '(' ')'
+	| postfix_expression '(' argument_expression_list ')'
+	| postfix_expression '.' IDENTIFIER
+	| postfix_expression PTR_OP IDENTIFIER
+	| postfix_expression INC_OP
+	| postfix_expression DEC_OP
+	;
+*/
+struct Expr *parse_postfix_expression(struct Lexer *lxr)
+{
+    struct Expr *expr;
+
+    if ((expr = parse_primary_expression(lxr)))
+    {
+        return expr;
+    }
+
+    struct Expr *child;
+    if (!(child = parse_postfix_expression(lxr)))
+        return NULL;
+
+    // ARRAY INDEX EXPRESSION
+    if (lxr->next_tok_tag == TOK_OPEN_BRACK && lexer_advance(lxr))
+    {
+        struct Expr *index;
+        if (!(index = parse_expression(lxr)))
+            return NULL;
+        lexer_expect(lxr, TOK_CLOSE_BRACK);
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_ARR_INDEX;
+        expr->as.arr_index.arr = child;
+        expr->as.arr_index.index = index;
+        return expr;
+    }
+
     return NULL;
 }
 

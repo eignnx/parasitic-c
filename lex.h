@@ -539,11 +539,12 @@ struct Lexer
 };
 
 // Mutates global state of the lexer.
-void lexer_advance(struct Lexer *lxr)
+bool lexer_advance(struct Lexer *lxr)
 {
     lxr->token = lxr->next_token;
     lxr->tok_tag = lxr->next_tok_tag;
     lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token, &lxr->input);
+    return true;
 }
 
 struct Lexer lexer_init(char *new_input)
