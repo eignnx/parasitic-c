@@ -14,6 +14,9 @@ struct Expr
         EXPR_LITERAL_BOOL,
         EXPR_IDENT,
         EXPR_ARR_INDEX,
+        EXPR_DOT_FIELD_ACCESS,
+        EXPR_ARROW_FIELD_ACCESS,
+        EXPR_POSTFIX_PLUS_PLUS,
     } tag;
 
     union
@@ -48,6 +51,23 @@ struct Expr
             struct Expr *arr;
             struct Expr *index;
         } arr_index;
+
+        struct
+        {
+            struct Expr *object;
+            char *field;
+        } dot_field_access;
+
+        struct
+        {
+            struct Expr *object;
+            char *field;
+        } arrow_field_access;
+
+        struct
+        {
+            struct Expr *operand;
+        } postfix_plus_plus;
 
     } as;
 };
@@ -134,6 +154,15 @@ int display_expr(FILE *out, struct Expr *expr)
                fprintf_s(out, "[") &&
                display_expr(out, expr->as.arr_index.index) &&
                fprintf_s(out, "]");
+    case EXPR_DOT_FIELD_ACCESS:
+        return display_expr(out, expr->as.dot_field_access.object) &&
+               fprintf_s(out, ".%s", expr->as.dot_field_access.field);
+    case EXPR_ARROW_FIELD_ACCESS:
+        return display_expr(out, expr->as.dot_field_access.object) &&
+               fprintf_s(out, "->%s", expr->as.arrow_field_access.field);
+    case EXPR_POSTFIX_PLUS_PLUS:
+        return display_expr(out, expr->as.postfix_plus_plus.operand) &&
+               fprintf_s(out, "++");
     default:
         perror("Invalid Expr tag");
         exit(1);
@@ -319,6 +348,39 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
         expr->tag = EXPR_ARR_INDEX;
         expr->as.arr_index.arr = child;
         expr->as.arr_index.index = index;
+        return expr;
+    }
+
+    // DOT FIELD ACCESS
+    if (lexer_accept(lxr, TOK_DOT))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_DOT_FIELD_ACCESS;
+        expr->as.dot_field_access.object = child;
+        expr->as.dot_field_access.field = lxr->token;
+        return expr;
+    }
+
+    // ARROW FIELD ACCESS
+    if (lexer_accept(lxr, TOK_ARROW))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_ARROW_FIELD_ACCESS;
+        expr->as.arrow_field_access.object = child;
+        expr->as.arrow_field_access.field = lxr->token;
+        return expr;
+    }
+
+    // POSTFIX PLUS PLUS
+    if (lexer_accept(lxr, TOK_PLUS_PLUS))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_POSTFIX_PLUS_PLUS;
+        expr->as.postfix_plus_plus.operand = child;
         return expr;
     }
 
