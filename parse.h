@@ -13,6 +13,7 @@ struct Expr
         EXPR_LITERAL_STRING,
         EXPR_LITERAL_BOOL,
         EXPR_IDENT,
+        EXPR_PARENTHESIZED,
         EXPR_ARR_INDEX,
         EXPR_DOT_FIELD_ACCESS,
         EXPR_ARROW_FIELD_ACCESS,
@@ -45,6 +46,11 @@ struct Expr
         {
             char *value;
         } ident;
+
+        struct
+        {
+            struct Expr *child;
+        } parenthesized;
 
         struct
         {
@@ -140,15 +146,15 @@ int display_expr(FILE *out, struct Expr *expr)
         return fprintf_s(out, "\"%s\"", expr->as.literal_string.value);
     case EXPR_LITERAL_BOOL:
         if (expr->as.literal_bool.value)
-        {
             return fprintf_s(out, "true");
-        }
         else
-        {
             return fprintf_s(out, "false");
-        }
     case EXPR_IDENT:
         return fprintf_s(out, "%s", expr->as.ident.value);
+    case EXPR_PARENTHESIZED:
+        return fprintf_s(out, "(") &&
+               display_expr(out, expr->as.parenthesized.child) &&
+               fprintf_s(out, ")");
     case EXPR_ARR_INDEX:
         return display_expr(out, expr->as.arr_index.arr) &&
                fprintf_s(out, "[") &&
@@ -158,7 +164,7 @@ int display_expr(FILE *out, struct Expr *expr)
         return display_expr(out, expr->as.dot_field_access.object) &&
                fprintf_s(out, ".%s", expr->as.dot_field_access.field);
     case EXPR_ARROW_FIELD_ACCESS:
-        return display_expr(out, expr->as.dot_field_access.object) &&
+        return display_expr(out, expr->as.arrow_field_access.object) &&
                fprintf_s(out, "->%s", expr->as.arrow_field_access.field);
     case EXPR_POSTFIX_PLUS_PLUS:
         return display_expr(out, expr->as.postfix_plus_plus.operand) &&
@@ -306,7 +312,13 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
         (expr = parse_expression(lxr)) &&
         lexer_expect(lxr, TOK_CLOSE_PAREN))
     {
-        return expr;
+        // NOTE: We need to parse parenthesized exprs as their own thing so that
+        // they can be printed into the output file without changing precedence
+        // of operations.
+        struct Expr *paren_expr = malloc(sizeof(*paren_expr));
+        paren_expr->tag = EXPR_PARENTHESIZED;
+        paren_expr->as.parenthesized.child = expr;
+        return paren_expr;
     }
     return NULL;
 }
