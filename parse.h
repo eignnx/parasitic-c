@@ -62,13 +62,7 @@ struct Expr
         {
             struct Expr *object;
             char *field;
-        } dot_field_access;
-
-        struct
-        {
-            struct Expr *object;
-            char *field;
-        } arrow_field_access;
+        } field_access;
 
         struct
         {
@@ -161,11 +155,11 @@ int display_expr(FILE *out, struct Expr *expr)
                display_expr(out, expr->as.arr_index.index) &&
                fprintf_s(out, "]");
     case EXPR_DOT_FIELD_ACCESS:
-        return display_expr(out, expr->as.dot_field_access.object) &&
-               fprintf_s(out, ".%s", expr->as.dot_field_access.field);
+        return display_expr(out, expr->as.field_access.object) &&
+               fprintf_s(out, ".%s", expr->as.field_access.field);
     case EXPR_ARROW_FIELD_ACCESS:
-        return display_expr(out, expr->as.arrow_field_access.object) &&
-               fprintf_s(out, "->%s", expr->as.arrow_field_access.field);
+        return display_expr(out, expr->as.field_access.object) &&
+               fprintf_s(out, "->%s", expr->as.field_access.field);
     case EXPR_POSTFIX_PLUS_PLUS:
         return display_expr(out, expr->as.postfix_plus_plus.operand) &&
                fprintf_s(out, "++");
@@ -280,9 +274,12 @@ struct Expr *parse_constant_or_string_expr(struct Lexer *lxr)
     return NULL;
 }
 
+struct Expr *parse_primary_expression(struct Lexer *);
+struct Expr *parse_postfix_expression(struct Lexer *);
+
 struct Expr *parse_expression(struct Lexer *lxr)
 {
-    return parse_primary_expression(lxr);
+    return parse_postfix_expression(lxr);
 }
 
 /*
@@ -469,42 +466,49 @@ struct Item *parse_item_pound_include(struct Lexer *lxr)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void test_parse_expr()
+void test_parse_exprs()
 {
     struct Lexer lxr;
     struct Expr *expr;
 
     printf("\n");
     lxr = lexer_init("-531");
-    if ((expr = parse_expr(&lxr)))
+    if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  '\\n'   ");
-    if ((expr = parse_expr(&lxr)))
+    if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
-    if ((expr = parse_expr(&lxr)))
+    if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  true ");
-    if ((expr = parse_expr(&lxr)))
+    if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  false ");
-    if ((expr = parse_expr(&lxr)))
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  my_dog->birth_date.year++ ");
+    if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
         perror("TEST FAILED");
@@ -571,7 +575,7 @@ void test_parse_items()
 void test_parser()
 {
     printf("%s\n", "Running parser tests...");
-    test_parse_expr();
+    test_parse_exprs();
     test_parse_types();
     test_parse_stmts();
     test_parse_items();
