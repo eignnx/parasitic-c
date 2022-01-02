@@ -321,79 +321,86 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
 }
 
 /*
-postfix_expression
-	: primary_expression
-	| postfix_expression '[' expression ']'
-	| postfix_expression '(' ')'
-	| postfix_expression '(' argument_expression_list ')'
-	| postfix_expression '.' IDENTIFIER
-	| postfix_expression PTR_OP IDENTIFIER
-	| postfix_expression INC_OP
-	| postfix_expression DEC_OP
-	;
+postfix_expression -->
+    primary_expression {
+        '[' expression ']'
+        '(' ')'
+        '(' argument_expression_list ')'
+        '.' IDENTIFIER
+        '->' IDENTIFIER
+        '++'
+        '--'
+    };
 */
 struct Expr *parse_postfix_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
 
-    if ((expr = parse_primary_expression(lxr)))
-    {
-        return expr;
-    }
-
-    struct Expr *child;
-    if (!(child = parse_postfix_expression(lxr)))
+    if (!(expr = parse_primary_expression(lxr)))
         return NULL;
 
-    // ARRAY INDEX EXPRESSION
-    if (lexer_accept(lxr, TOK_OPEN_BRACK))
+    while (true)
     {
-        struct Expr *index;
-        if (!(index = parse_expression(lxr)))
-            return NULL;
-        lexer_expect(lxr, TOK_CLOSE_BRACK);
 
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_ARR_INDEX;
-        expr->as.arr_index.arr = child;
-        expr->as.arr_index.index = index;
-        return expr;
+        // ARRAY INDEX EXPRESSION
+        if (lexer_accept(lxr, TOK_OPEN_BRACK))
+        {
+            struct Expr *index;
+            if (!(index = parse_expression(lxr)))
+                return NULL;
+            lexer_expect(lxr, TOK_CLOSE_BRACK);
+
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_ARR_INDEX;
+            new_expr->as.arr_index.arr = expr;
+            new_expr->as.arr_index.index = index;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // DOT FIELD ACCESS
+        if (lexer_accept(lxr, TOK_DOT))
+        {
+            lexer_expect(lxr, TOK_IDENT);
+
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_DOT_FIELD_ACCESS;
+            new_expr->as.field_access.object = expr;
+            new_expr->as.field_access.field = lxr->token;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // ARROW FIELD ACCESS
+        if (lexer_accept(lxr, TOK_ARROW))
+        {
+            lexer_expect(lxr, TOK_IDENT);
+
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_ARROW_FIELD_ACCESS;
+            new_expr->as.field_access.object = expr;
+            new_expr->as.field_access.field = lxr->token;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // POSTFIX PLUS PLUS
+        if (lexer_accept(lxr, TOK_PLUS_PLUS))
+        {
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_POSTFIX_PLUS_PLUS;
+            new_expr->as.postfix_plus_plus.operand = expr;
+
+            expr = new_expr;
+            continue;
+        }
+
+        break;
     }
-
-    // DOT FIELD ACCESS
-    if (lexer_accept(lxr, TOK_DOT))
-    {
-        lexer_expect(lxr, TOK_IDENT);
-
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_DOT_FIELD_ACCESS;
-        expr->as.field_access.object = child;
-        expr->as.field_access.field = lxr->token;
-        return expr;
-    }
-
-    // ARROW FIELD ACCESS
-    if (lexer_accept(lxr, TOK_ARROW))
-    {
-        lexer_expect(lxr, TOK_IDENT);
-
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_ARROW_FIELD_ACCESS;
-        expr->as.field_access.object = child;
-        expr->as.field_access.field = lxr->token;
-        return expr;
-    }
-
-    // POSTFIX PLUS PLUS
-    if (lexer_accept(lxr, TOK_PLUS_PLUS))
-    {
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_POSTFIX_PLUS_PLUS;
-        expr->as.postfix_plus_plus.operand = child;
-        return expr;
-    }
-
-    return NULL;
+    return expr;
 }
 
 //////////////////////////// TYPES ////////////////////////////////////////////
@@ -507,7 +514,7 @@ void test_parse_exprs()
         perror("TEST FAILED");
 
     printf("\n");
-    lxr = lexer_init("  my_dog->birth_date.year++ ");
+    lxr = lexer_init("  my_dog->birth_date[100].year++ ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
