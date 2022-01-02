@@ -346,7 +346,7 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
         return NULL;
 
     // ARRAY INDEX EXPRESSION
-    if (lxr->next_tok_tag == TOK_OPEN_BRACK && lexer_advance(lxr))
+    if (lexer_accept(lxr, TOK_OPEN_BRACK))
     {
         struct Expr *index;
         if (!(index = parse_expression(lxr)))
