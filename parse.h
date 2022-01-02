@@ -367,8 +367,8 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
 
         expr = malloc(sizeof(*expr));
         expr->tag = EXPR_DOT_FIELD_ACCESS;
-        expr->as.dot_field_access.object = child;
-        expr->as.dot_field_access.field = lxr->token;
+        expr->as.field_access.object = child;
+        expr->as.field_access.field = lxr->token;
         return expr;
     }
 
@@ -379,8 +379,8 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
 
         expr = malloc(sizeof(*expr));
         expr->tag = EXPR_ARROW_FIELD_ACCESS;
-        expr->as.arrow_field_access.object = child;
-        expr->as.arrow_field_access.field = lxr->token;
+        expr->as.field_access.object = child;
+        expr->as.field_access.field = lxr->token;
         return expr;
     }
 
