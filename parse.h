@@ -454,10 +454,8 @@ struct Item *parse_item_pound_include(struct Lexer *lxr)
     if (!lexer_expect(lxr, TOK_INCLUDE))
         return NULL;
 
-    if (lxr->next_tok_tag != TOK_ANGLE_BRACK_FILENAME && lxr->next_tok_tag != TOK_LITERAL_STRING)
+    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
         return NULL;
-
-    lexer_advance(lxr);
 
     struct Item *item = malloc(sizeof(*item));
     item->tag = ITEM_POUND_INCLUDE;
