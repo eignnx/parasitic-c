@@ -18,6 +18,10 @@ struct Expr
         EXPR_DOT_FIELD_ACCESS,
         EXPR_ARROW_FIELD_ACCESS,
         EXPR_POSTFIX_PLUS_PLUS,
+
+        EXPR_REFERENCE,
+        EXPR_DEREFERENCE,
+        EXPR_NEGATION,
     } tag;
 
     union
@@ -68,6 +72,11 @@ struct Expr
         {
             struct Expr *operand;
         } postfix_plus_plus;
+
+        struct
+        {
+            struct Expr *operand;
+        } unary_op;
 
     } as;
 };
@@ -163,6 +172,15 @@ int display_expr(FILE *out, struct Expr *expr)
     case EXPR_POSTFIX_PLUS_PLUS:
         return display_expr(out, expr->as.postfix_plus_plus.operand) &&
                fprintf_s(out, "++");
+    case EXPR_REFERENCE:
+        return fprintf_s(out, "&") &&
+               display_expr(out, expr->as.unary_op.operand);
+    case EXPR_DEREFERENCE:
+        return fprintf_s(out, "*") &&
+               display_expr(out, expr->as.unary_op.operand);
+    case EXPR_NEGATION:
+        return fprintf_s(out, "!") &&
+               display_expr(out, expr->as.unary_op.operand);
     default:
         perror("Invalid Expr tag");
         exit(1);
@@ -270,26 +288,26 @@ struct Expr *parse_constant_or_string_expr(struct Lexer *lxr)
     if ((expr = parse_expr_literal_string(lxr)))
         return expr;
 
-    perror("Expected expression, but none was found");
     return NULL;
 }
 
 struct Expr *parse_primary_expression(struct Lexer *);
 struct Expr *parse_postfix_expression(struct Lexer *);
+struct Expr *parse_cast_expression(struct Lexer *);
+struct Expr *parse_unary_expression(struct Lexer *);
+struct Expr *parse_assignment_expression(struct Lexer *);
 
 struct Expr *parse_expression(struct Lexer *lxr)
 {
-    return parse_postfix_expression(lxr);
+    return parse_assignment_expression(lxr);
 }
 
-/*
-primary_expression
-	: IDENTIFIER
-	| CONSTANT
-	| STRING_LITERAL
-	| '(' expression ')'
-	;
-*/
+// primary_expression
+// 	: IDENTIFIER
+// 	| CONSTANT
+// 	| STRING_LITERAL
+// 	| '(' expression ')'
+// 	;
 struct Expr *parse_primary_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
@@ -320,18 +338,163 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
     return NULL;
 }
 
-/*
-postfix_expression -->
-    primary_expression {
-        '[' expression ']'
-        '(' ')'
-        '(' argument_expression_list ')'
-        '.' IDENTIFIER
-        '->' IDENTIFIER
-        '++'
-        '--'
-    };
-*/
+// cast_expression
+// 	: unary_expression
+// 	| '(' type_name ')' cast_expression
+// 	;
+struct Expr *parse_cast_expression(struct Lexer *lxr)
+{
+    // TODO: actually handle cast expressions.
+    return parse_unary_expression(lxr);
+}
+
+// unary_expression
+// 	: postfix_expression
+// // | '++' unary_expression
+// // | '--' unary_expression
+// 	| ('&' | '*' | '!') cast_expression
+// 	| SIZEOF unary_expression
+// 	| SIZEOF '(' type_name ')'
+// 	;
+struct Expr *parse_unary_expression(struct Lexer *lxr)
+{
+    struct Expr *expr;
+
+    if ((expr = parse_postfix_expression(lxr)))
+        return expr;
+
+    if (lexer_accept(lxr, TOK_AMPERSAND))
+    {
+        struct Expr *operand;
+        if (!(operand = parse_cast_expression(lxr)))
+            return NULL;
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_REFERENCE;
+        expr->as.unary_op.operand = operand;
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_STAR))
+    {
+        struct Expr *operand;
+        if (!(operand = parse_cast_expression(lxr)))
+            return NULL;
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_DEREFERENCE;
+        expr->as.unary_op.operand = operand;
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_BANG))
+    {
+        struct Expr *operand;
+        if (!(operand = parse_cast_expression(lxr)))
+            return NULL;
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_NEGATION;
+        expr->as.unary_op.operand = operand;
+        return expr;
+    }
+
+    return NULL;
+}
+
+// multiplicative_expression
+// 	: cast_expression
+// 	| multiplicative_expression '*' cast_expression
+// 	| multiplicative_expression '/' cast_expression
+// 	| multiplicative_expression '%' cast_expression
+// 	;
+struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
+{
+    return parse_cast_expression(lxr);
+}
+
+// additive_expression
+// 	: multiplicative_expression
+// 	| additive_expression '+' multiplicative_expression
+// 	| additive_expression '-' multiplicative_expression
+// 	;
+struct Expr *parse_additive_expression(struct Lexer *lxr)
+{
+    return parse_multiplicative_expression(lxr);
+}
+
+// relational_expression
+// 	: additive_expression
+// 	| relational_expression '<' shift_expression
+// 	| relational_expression '>' shift_expression
+// 	| relational_expression LE_OP shift_expression
+// 	| relational_expression GE_OP shift_expression
+// 	;
+struct Expr *parse_relational_expression(struct Lexer *lxr)
+{
+    return parse_additive_expression(lxr);
+}
+
+// equality_expression
+// 	: relational_expression
+// 	| equality_expression == relational_expression
+// 	| equality_expression != relational_expression
+// 	;
+struct Expr *parse_equality_expression(struct Lexer *lxr)
+{
+    return parse_relational_expression(lxr);
+}
+
+// logical_and_expression
+// 	: equality_expression
+// 	| logical_and_expression && inclusive_or_expression
+// 	;
+struct Expr *parse_logical_and_expression(struct Lexer *lxr)
+{
+    return parse_equality_expression(lxr);
+}
+
+// logical_or_expression
+// 	: logical_and_expression
+// 	| logical_or_expression || logical_and_expression
+// 	;
+struct Expr *parse_logical_or_expression(struct Lexer *lxr)
+{
+    return parse_logical_and_expression(lxr);
+}
+
+// conditional_expression
+// 	: logical_or_expression
+// 	| logical_or_expression '?' expression ':' conditional_expression
+// 	;
+struct Expr *parse_conditional_expression(struct Lexer *lxr)
+{
+    return parse_logical_or_expression(lxr);
+}
+
+// assignment_expression
+// 	: conditional_expression
+// 	| unary_expression '=' assignment_expression
+// 	;
+struct Expr *parse_assignment_expression(struct Lexer *lxr)
+{
+    return parse_conditional_expression(lxr);
+}
+
+// struct Expr *parse_argument_expression_list(struct Lexer *lxr)
+// {
+// }
+
+// postfix_expression -->
+//     primary_expression {
+//         '[' expression ']'
+//         '(' ')'
+//         '(' argument_expression_list ')'
+//         '.' IDENTIFIER
+//         '->' IDENTIFIER
+//         '++'
+//         '--'
+//     }
 struct Expr *parse_postfix_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
@@ -513,6 +676,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  my_dog->birth_date[100].year++ ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  !*&*ptr_to_bool  ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
