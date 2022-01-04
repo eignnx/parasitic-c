@@ -13,6 +13,7 @@ struct Expr *parse_constant(struct Lexer *);
 struct Expr *parse_expression(struct Lexer *);
 struct Expr *parse_cast_expression(struct Lexer *);
 struct Expr *parse_assignment_expression(struct Lexer *);
+bool display_expr(FILE *, struct Expr *);
 struct ArgList *parse_argument_expression_list(struct Lexer *);
 bool display_arglist(FILE *, struct ArgList *);
 
@@ -408,6 +409,11 @@ struct Expr
 
         EXPR_ADD,
         EXPR_SUB,
+
+        EXPR_GT,
+        EXPR_GTE,
+        EXPR_LT,
+        EXPR_LTE,
     } tag;
 
     union
@@ -495,6 +501,13 @@ struct Expr
     } as;
 };
 
+bool display_bin_op(FILE *out, char *op, struct Expr *x, struct Expr *y)
+{
+    return display_expr(out, x) &&
+           fprintf_s(out, " %s ", op) >= 0 &&
+           display_expr(out, y);
+}
+
 bool display_expr(FILE *out, struct Expr *expr)
 {
     switch (expr->tag)
@@ -557,13 +570,17 @@ bool display_expr(FILE *out, struct Expr *expr)
                fprintf_s(out, ") ") >= 0 &&
                display_expr(out, expr->as.cast.expr);
     case EXPR_ADD:
-        return display_expr(out, expr->as.binary_op.x) &&
-               fprintf_s(out, " + ") >= 0 &&
-               display_expr(out, expr->as.binary_op.y);
+        return display_bin_op(out, "+", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_SUB:
-        return display_expr(out, expr->as.binary_op.x) &&
-               fprintf_s(out, " - ") >= 0 &&
-               display_expr(out, expr->as.binary_op.y);
+        return display_bin_op(out, "-", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_GT:
+        return display_bin_op(out, ">", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_GTE:
+        return display_bin_op(out, ">=", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_LT:
+        return display_bin_op(out, "<", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_LTE:
+        return display_bin_op(out, "<=", expr->as.binary_op.x, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -901,21 +918,21 @@ struct Expr *parse_additive_expression(struct Lexer *lxr)
         struct Expr *y;
 
         // Save the token type.
-        enum TokTag plus_or_minus = lxr->tok_tag;
+        enum TokTag op = lxr->tok_tag;
 
         if (!(y = parse_multiplicative_expression(lxr)))
         {
-            printf("ERROR: expected expression after `+`, got nothing\n");
+            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
             exit(1);
         }
 
         struct Expr *new_expr = malloc(sizeof(*new_expr));
-        if (plus_or_minus == TOK_PLUS)
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+        if (op == TOK_PLUS)
             new_expr->tag = EXPR_ADD;
         else
             new_expr->tag = EXPR_SUB;
-        new_expr->as.binary_op.x = accum;
-        new_expr->as.binary_op.y = y;
 
         accum = new_expr;
     }
@@ -934,7 +951,43 @@ struct Expr *parse_shift_expression(struct Lexer *lxr)
 //      <- ShiftExpression ((LE / GE / LT / GT) ShiftExpression)*
 struct Expr *parse_relational_expression(struct Lexer *lxr)
 {
-    return parse_shift_expression(lxr);
+    struct Expr *accum;
+
+    if (!(accum = parse_shift_expression(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_LTE) ||
+           lexer_accept(lxr, TOK_GTE) ||
+           lexer_accept(lxr, TOK_LT) ||
+           lexer_accept(lxr, TOK_GT))
+    {
+        struct Expr *y;
+
+        // Save the token type.
+        enum TokTag op = lxr->tok_tag;
+
+        if (!(y = parse_shift_expression(lxr)))
+        {
+            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
+            exit(1);
+        }
+
+        struct Expr *new_expr = malloc(sizeof(*new_expr));
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+        if (op == TOK_LTE)
+            new_expr->tag = EXPR_LTE;
+        else if (op == TOK_GTE)
+            new_expr->tag = EXPR_GTE;
+        else if (op == TOK_LT)
+            new_expr->tag = EXPR_LT;
+        else if (op == TOK_GT)
+            new_expr->tag = EXPR_GT;
+
+        accum = new_expr;
+    }
+
+    return accum;
 }
 
 // EqualityExpression
@@ -1146,6 +1199,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  1 + 2 - 3 + 4 ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  100 >= 0 ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
