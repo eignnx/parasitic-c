@@ -420,6 +420,8 @@ struct Expr
 
         EXPR_AND,
         EXPR_OR,
+
+        EXPR_ASSIGN,
     } tag;
 
     union
@@ -595,6 +597,8 @@ bool display_expr(FILE *out, struct Expr *expr)
         return display_bin_op(out, "&&", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_OR:
         return display_bin_op(out, "||", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_ASSIGN:
+        return display_bin_op(out, "=", expr->as.binary_op.x, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -1124,18 +1128,35 @@ struct Expr *parse_conditional_expression(struct Lexer *lxr)
 //
 // AssignmentOperator
 //    <- EQU
-//     / STAREQU
-//     / DIVEQU
-//     / MODEQU
-//     / PLUSEQU
-//     / MINUSEQU
-//     / LEFTEQU
-//     / RIGHTEQU
-//     / ANDEQU
-//     / HATEQU
-//     / OREQU
+//     / STAREQU  # :IGNORED
+//     / DIVEQU   # :IGNORED
+//     / MODEQU   # :IGNORED
+//     / PLUSEQU  # :IGNORED
+//     / MINUSEQU # :IGNORED
+//     / LEFTEQU  # :IGNORED
+//     / RIGHTEQU # :IGNORED
+//     / ANDEQU   # :IGNORED
+//     / HATEQU   # :IGNORED
+//     / OREQU    # :IGNORED
 struct Expr *parse_assignment_expression(struct Lexer *lxr)
 {
+    struct Expr *unary, *assignment;
+
+    {
+        struct Lexer saved_lxr = *lxr; // HACK: backtracking hack
+        if ((unary = parse_unary_expression(lxr)) &&
+            lexer_accept(lxr, TOK_EQUAL) &&
+            (assignment = parse_assignment_expression(lxr)))
+        {
+            struct Expr *expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_ASSIGN;
+            expr->as.binary_op.x = unary;
+            expr->as.binary_op.y = assignment;
+            return expr;
+        }
+        *lxr = saved_lxr;
+    }
+
     return parse_conditional_expression(lxr);
 }
 
@@ -1321,6 +1342,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  100 != 0 || -4 < -3  ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  **ptr_ptr = *ptr = 123  ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
