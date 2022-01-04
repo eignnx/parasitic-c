@@ -2,6 +2,11 @@
 #include <stdlib.h> // atoi, malloc, free
 #include "lex.h"    // lex, lex_all_input
 
+// DEVELOPMENT MACROS, SAFE TO DELETE WHEN BOOTSTRAPPING
+#define unimplemented                                                          \
+    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__); \
+    exit(1)
+
 // FORWARD DECLARATIONS
 struct Type *parse_type_specifier(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
@@ -333,8 +338,7 @@ struct Stmt
 
 bool display_stmt(struct Stmt *stmt)
 {
-    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-    exit(1);
+    unimplemented;
 }
 
 // Statement
@@ -346,8 +350,7 @@ bool display_stmt(struct Stmt *stmt)
 //     / JumpStatement
 struct Stmt *parse_statement(struct Lexer *lxr)
 {
-    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-    exit(1);
+    unimplemented;
 }
 
 // LabeledStatement
