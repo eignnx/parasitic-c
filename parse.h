@@ -405,6 +405,8 @@ struct Expr
         EXPR_SIZEOF_TYPE,
 
         EXPR_CAST,
+
+        EXPR_ADD,
     } tag;
 
     union
@@ -483,6 +485,12 @@ struct Expr
             struct Expr *expr;
         } cast;
 
+        struct
+        {
+            struct Expr *x;
+            struct Expr *y;
+        } binary_op;
+
     } as;
 };
 
@@ -547,6 +555,10 @@ bool display_expr(FILE *out, struct Expr *expr)
                display_type(out, expr->as.cast.type) &&
                fprintf_s(out, ") ") >= 0 &&
                display_expr(out, expr->as.cast.expr);
+    case EXPR_ADD:
+        return display_expr(out, expr->as.binary_op.x) &&
+               fprintf_s(out, " + ") >= 0 &&
+               display_expr(out, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -874,7 +886,30 @@ struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
 //      <- MultiplicativeExpression ((PLUS / MINUS) MultiplicativeExpression)*
 struct Expr *parse_additive_expression(struct Lexer *lxr)
 {
-    return parse_multiplicative_expression(lxr);
+    struct Expr *accum;
+
+    if (!(accum = parse_multiplicative_expression(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_PLUS))
+    {
+        struct Expr *y;
+
+        if (!(y = parse_multiplicative_expression(lxr)))
+        {
+            printf("ERROR: expected expression after `+`, got nothing\n");
+            exit(1);
+        }
+
+        struct Expr *new_expr = malloc(sizeof(*new_expr));
+        new_expr->tag = EXPR_ADD;
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+
+        accum = new_expr;
+    }
+
+    return accum;
 }
 
 // ShiftExpression
@@ -1093,6 +1128,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  (int) true ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  1 + 2 + 3  ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else

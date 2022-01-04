@@ -28,6 +28,7 @@ enum TokTag
     TOK_OR,          // ||
     TOK_BANG,        // !
     TOK_GT,          // >
+    TOK_PLUS,        // +
 
     // LITERALS
     TOK_LITERAL_INT,
@@ -85,6 +86,7 @@ char *tok_tag_names[] = {
     "TOK_OR",          // ||
     "TOK_BANG",        // !
     "TOK_GT",          // >
+    "TOK_PLUS",        // +
 
     // LITERALS
     "TOK_LITERAL_INT",
@@ -458,6 +460,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_symbol(input, ">", TOK_GT, out_tok_typ, new_input))
+        return true;
+
+    if (expect_symbol(input, "+", TOK_PLUS, out_tok_typ, new_input))
         return true;
 
     if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
