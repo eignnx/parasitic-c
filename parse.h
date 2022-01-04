@@ -403,6 +403,8 @@ struct Expr
         EXPR_NEGATION,
         EXPR_SIZEOF_EXPR,
         EXPR_SIZEOF_TYPE,
+
+        EXPR_CAST,
     } tag;
 
     union
@@ -475,6 +477,12 @@ struct Expr
             struct Type *type;
         } sizeof_type;
 
+        struct
+        {
+            struct Type *type;
+            struct Expr *expr;
+        } cast;
+
     } as;
 };
 
@@ -534,6 +542,11 @@ bool display_expr(FILE *out, struct Expr *expr)
         return fprintf_s(out, "sizeof(") >= 0 &&
                display_type(out, expr->as.sizeof_type.type) &&
                fprintf_s(out, ")") >= 0;
+    case EXPR_CAST:
+        return fprintf_s(out, "(") >= 0 &&
+               display_type(out, expr->as.cast.type) &&
+               fprintf_s(out, ") ") >= 0 &&
+               display_expr(out, expr->as.cast.expr);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -610,7 +623,7 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
 //       / LPAR TypeName RPAR LWING InitializerList COMMA? RWING  # :TODO: parse compound literals https://en.cppreference.com/w/c/language/compound_literal
 //       )
 //       ( LBRK Expression RBRK
-//       / LPAR ArgumentExpressionList? RPAR  # :TODO
+//       / LPAR ArgumentExpressionList? RPAR
 //       / DOT Identifier
 //       / PTR Identifier
 //       / INC
@@ -827,7 +840,26 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 //       / UnaryExpression
 struct Expr *parse_cast_expression(struct Lexer *lxr)
 {
-    // TODO: actually handle cast expressions.
+    {
+        struct Lexer saved_lxr = *lxr;
+        {
+            struct Type *type;
+            struct Expr *expr;
+            if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
+                (type = parse_type_name(lxr)) &&
+                lexer_accept(lxr, TOK_CLOSE_PAREN) &&
+                (expr = parse_cast_expression(lxr)))
+            {
+                struct Expr *cast_expr = malloc(sizeof(*cast_expr));
+                cast_expr->tag = EXPR_CAST;
+                cast_expr->as.cast.type = type;
+                cast_expr->as.cast.expr = expr;
+                return cast_expr;
+            }
+        }
+        *lxr = saved_lxr;
+    }
+
     return parse_unary_expression(lxr);
 }
 
@@ -1054,6 +1086,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  sizeof(void)  ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  (int) true ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
