@@ -230,6 +230,11 @@ struct Type *parse_type_specifier(struct Lexer *lxr)
 //     / ( TypeSpecifier
 //       / TypeQualifier
 //       )+
+struct Type *parse_specifier_qualifier_list(struct Lexer *lxr)
+{
+    // TODO: finish impl
+    return parse_type_specifier(lxr);
+}
 
 // StructDeclaratorList <- StructDeclarator (COMMA StructDeclarator)*
 
@@ -287,8 +292,7 @@ struct Type *parse_type_specifier(struct Lexer *lxr)
 //      <- SpecifierQualifierList AbstractDeclarator?
 struct Type *parse_type_name(struct Lexer *lxr)
 {
-    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-    exit(1);
+    return parse_specifier_qualifier_list(lxr);
 }
 
 // AbstractDeclarator
@@ -304,7 +308,7 @@ struct Type *parse_type_name(struct Lexer *lxr)
 //       / LPAR ParameterTypeList? RPAR
 //       )*
 
-// TypedefName <-Identifier #{&TypedefName}
+// TypedefName <- Identifier #{&TypedefName}
 
 // Initializer
 //    <- AssignmentExpression
@@ -394,6 +398,8 @@ struct Expr
         EXPR_REFERENCE,
         EXPR_DEREFERENCE,
         EXPR_NEGATION,
+        EXPR_SIZEOF_EXPR,
+        EXPR_SIZEOF_TYPE,
     } tag;
 
     union
@@ -456,6 +462,16 @@ struct Expr
             struct Expr *operand;
         } unary_op;
 
+        struct
+        {
+            struct Expr *operand;
+        } sizeof_expr;
+
+        struct
+        {
+            struct Type *type;
+        } sizeof_type;
+
     } as;
 };
 
@@ -508,6 +524,13 @@ bool display_expr(FILE *out, struct Expr *expr)
     case EXPR_NEGATION:
         return fprintf_s(out, "!") >= 0 &&
                display_expr(out, expr->as.unary_op.operand);
+    case EXPR_SIZEOF_EXPR:
+        return fprintf_s(out, "sizeof ") >= 0 &&
+               display_expr(out, expr->as.sizeof_expr.operand);
+    case EXPR_SIZEOF_TYPE:
+        return fprintf_s(out, "sizeof(") >= 0 &&
+               display_type(out, expr->as.sizeof_type.type) &&
+               fprintf_s(out, ")") >= 0;
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -719,9 +742,9 @@ struct ArgList *parse_argument_expression_list(struct Lexer *lxr)
 // UnaryOperator
 //    <- AND
 //     / STAR
-//     / PLUS
-//     / MINUS
-//     / TILDA
+//     / PLUS # :IGNORED
+//     / MINUS # :IGNORED
+//     / TILDA # :IGNORED
 //     / BANG
 struct Expr *parse_unary_expression(struct Lexer *lxr)
 {
@@ -768,21 +791,26 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 
     if (lexer_accept(lxr, TOK_SIZEOF))
     {
-        if ((expr = parse_unary_expression(lxr)))
+        struct Expr *operand;
+        struct Lexer saved_lxr = *lxr; // TODO: find a fix for this problem
+        if ((operand = parse_unary_expression(lxr)))
         {
-            // TODOOOOOOOOOOOO
-            printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-            exit(1);
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_SIZEOF_EXPR;
+            expr->as.sizeof_expr.operand = operand;
+            return expr;
         }
+        *lxr = saved_lxr; // HACK: restore lexer state
 
         struct Type *type;
-        if (lexer_expect(lxr, TOK_OPEN_PAREN) &&
+        if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
             (type = parse_type_name(lxr)) &&
             lexer_expect(lxr, TOK_CLOSE_PAREN))
         {
-            // TODOOOOOOOOOOOO
-            printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-            exit(1);
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_SIZEOF_TYPE;
+            expr->as.sizeof_type.type = type;
+            return expr;
         }
 
         return NULL;
@@ -1009,6 +1037,20 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  !*&*ptr_to_bool  ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  sizeof(*expr)  ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  sizeof(void)  ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
