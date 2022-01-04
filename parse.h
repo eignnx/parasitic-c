@@ -407,6 +407,7 @@ struct Expr
         EXPR_CAST,
 
         EXPR_ADD,
+        EXPR_SUB,
     } tag;
 
     union
@@ -558,6 +559,10 @@ bool display_expr(FILE *out, struct Expr *expr)
     case EXPR_ADD:
         return display_expr(out, expr->as.binary_op.x) &&
                fprintf_s(out, " + ") >= 0 &&
+               display_expr(out, expr->as.binary_op.y);
+    case EXPR_SUB:
+        return display_expr(out, expr->as.binary_op.x) &&
+               fprintf_s(out, " - ") >= 0 &&
                display_expr(out, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
@@ -891,9 +896,12 @@ struct Expr *parse_additive_expression(struct Lexer *lxr)
     if (!(accum = parse_multiplicative_expression(lxr)))
         return NULL;
 
-    while (lexer_accept(lxr, TOK_PLUS))
+    while (lexer_accept(lxr, TOK_PLUS) || lexer_accept(lxr, TOK_MINUS))
     {
         struct Expr *y;
+
+        // Save the token type.
+        enum TokTag plus_or_minus = lxr->tok_tag;
 
         if (!(y = parse_multiplicative_expression(lxr)))
         {
@@ -902,7 +910,10 @@ struct Expr *parse_additive_expression(struct Lexer *lxr)
         }
 
         struct Expr *new_expr = malloc(sizeof(*new_expr));
-        new_expr->tag = EXPR_ADD;
+        if (plus_or_minus == TOK_PLUS)
+            new_expr->tag = EXPR_ADD;
+        else
+            new_expr->tag = EXPR_SUB;
         new_expr->as.binary_op.x = accum;
         new_expr->as.binary_op.y = y;
 
@@ -1134,7 +1145,7 @@ void test_parse_exprs()
         perror("TEST FAILED");
 
     printf("\n");
-    lxr = lexer_init("  1 + 2 + 3  ");
+    lxr = lexer_init("  1 + 2 - 3 + 4 ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
