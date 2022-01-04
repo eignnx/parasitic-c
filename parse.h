@@ -417,6 +417,9 @@ struct Expr
 
         EXPR_EQUAL,
         EXPR_NOT_EQUAL,
+
+        EXPR_AND,
+        EXPR_OR,
     } tag;
 
     union
@@ -588,6 +591,10 @@ bool display_expr(FILE *out, struct Expr *expr)
         return display_bin_op(out, "==", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_NOT_EQUAL:
         return display_bin_op(out, "!=", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_AND:
+        return display_bin_op(out, "&&", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_OR:
+        return display_bin_op(out, "||", expr->as.binary_op.x, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -1048,18 +1055,64 @@ struct Expr *parse_equality_expression(struct Lexer *lxr)
 //      <- InclusiveORExpression (ANDAND InclusiveORExpression)*
 struct Expr *parse_logical_and_expression(struct Lexer *lxr)
 {
-    return parse_equality_expression(lxr);
+    struct Expr *accum;
+
+    if (!(accum = parse_equality_expression(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_AND))
+    {
+        struct Expr *y;
+
+        if (!(y = parse_equality_expression(lxr)))
+        {
+            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[TOK_AND]);
+            exit(1);
+        }
+
+        struct Expr *new_expr = malloc(sizeof(*new_expr));
+        new_expr->tag = EXPR_AND;
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+
+        accum = new_expr;
+    }
+
+    return accum;
 }
 
 // LogicalORExpression
 //      <- LogicalANDExpression (OROR LogicalANDExpression)*
 struct Expr *parse_logical_or_expression(struct Lexer *lxr)
 {
-    return parse_logical_and_expression(lxr);
+    struct Expr *accum;
+
+    if (!(accum = parse_logical_and_expression(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_OR))
+    {
+        struct Expr *y;
+
+        if (!(y = parse_logical_and_expression(lxr)))
+        {
+            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[TOK_OR]);
+            exit(1);
+        }
+
+        struct Expr *new_expr = malloc(sizeof(*new_expr));
+        new_expr->tag = EXPR_OR;
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+
+        accum = new_expr;
+    }
+
+    return accum;
 }
 
 // ConditionalExpression
-//      <- LogicalORExpression (QUERY Expression COLON LogicalORExpression)*
+//      <- LogicalORExpression (QUERY Expression COLON LogicalORExpression)* # :IGNORED
 struct Expr *parse_conditional_expression(struct Lexer *lxr)
 {
     return parse_logical_or_expression(lxr);
@@ -1254,6 +1307,20 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  100 != 0 ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  100 != 0 && -4 < -3  ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  100 != 0 || -4 < -3  ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else

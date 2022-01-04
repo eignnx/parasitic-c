@@ -440,6 +440,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_symbol(input, "*", TOK_STAR, out_tok_typ, new_input))
         return true;
 
+    if (expect_symbol(input, "&&", TOK_AND, out_tok_typ, new_input))
+        return true;
+
     if (expect_symbol(input, "&", TOK_AMPERSAND, out_tok_typ, new_input))
         return true;
 
@@ -456,9 +459,6 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_symbol(input, "!=", TOK_NOT_EQUAL, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "&&", TOK_AND, out_tok_typ, new_input))
         return true;
 
     if (expect_symbol(input, "||", TOK_OR, out_tok_typ, new_input))
