@@ -7,6 +7,9 @@ struct Type *parse_type_specifier(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
 struct Expr *parse_expression(struct Lexer *);
 struct Expr *parse_cast_expression(struct Lexer *);
+struct Expr *parse_assignment_expression(struct Lexer *);
+struct ArgList *parse_argument_expression_list(struct Lexer *);
+bool display_arglist(FILE *, struct ArgList *);
 
 // #-------------------------------------------------------------------------
 // #  A.2.4  External definitions
@@ -46,19 +49,18 @@ struct Decl
     } as;
 };
 
-int display_decl(FILE *out, struct Decl *decl)
+bool display_decl(FILE *out, struct Decl *decl)
 {
     switch (decl->tag)
     {
     case DECL_POUND_INCLUDE:
-        fprintf_s(out, "#include ");
         if (decl->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
-            return fprintf_s(out, "<%s>", decl->as.pound_include.filename);
+            return fprintf_s(out, "#include <%s>", decl->as.pound_include.filename) >= 0;
         }
         else
         {
-            return fprintf_s(out, "\"%s\"", decl->as.pound_include.filename);
+            return fprintf_s(out, "#include \"%s\"", decl->as.pound_include.filename) >= 0;
         }
     default:
         perror("Invalid Decl tag");
@@ -325,7 +327,7 @@ struct Stmt
     int placeholder;
 };
 
-int display_stmt(struct Stmt *stmt)
+bool display_stmt(struct Stmt *stmt)
 {
     printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
     exit(1);
@@ -384,6 +386,7 @@ struct Expr
         EXPR_IDENT,
         EXPR_PARENTHESIZED,
         EXPR_ARR_INDEX,
+        EXPR_CALL,
         EXPR_DOT_FIELD_ACCESS,
         EXPR_ARROW_FIELD_ACCESS,
         EXPR_POSTFIX_PLUS_PLUS,
@@ -433,6 +436,12 @@ struct Expr
 
         struct
         {
+            struct Expr *callable;
+            struct ArgList *args;
+        } call;
+
+        struct
+        {
             struct Expr *object;
             char *field;
         } field_access;
@@ -450,54 +459,78 @@ struct Expr
     } as;
 };
 
-int display_expr(FILE *out, struct Expr *expr)
+bool display_expr(FILE *out, struct Expr *expr)
 {
     switch (expr->tag)
     {
     case EXPR_LITERAL_INT:
-        return fprintf_s(out, "%d", expr->as.literal_int.value);
+        return fprintf_s(out, "%d", expr->as.literal_int.value) >= 0;
     case EXPR_LITERAL_CHAR:
-        return fprintf_s(out, "'%s'", expr->as.literal_char.value);
+        return fprintf_s(out, "'%s'", expr->as.literal_char.value) >= 0;
     case EXPR_LITERAL_STRING:
-        return fprintf_s(out, "\"%s\"", expr->as.literal_string.value);
+        return fprintf_s(out, "\"%s\"", expr->as.literal_string.value) >= 0;
     case EXPR_LITERAL_BOOL:
         if (expr->as.literal_bool.value)
-            return fprintf_s(out, "true");
+            return fprintf_s(out, "true") >= 0;
         else
-            return fprintf_s(out, "false");
+            return fprintf_s(out, "false") >= 0;
     case EXPR_IDENT:
-        return fprintf_s(out, "%s", expr->as.ident.value);
+        return fprintf_s(out, "%s", expr->as.ident.value) >= 0;
     case EXPR_PARENTHESIZED:
-        return fprintf_s(out, "(") &&
+        return fprintf_s(out, "(") >= 0 &&
                display_expr(out, expr->as.parenthesized.child) &&
-               fprintf_s(out, ")");
+               fprintf_s(out, ")") >= 0;
     case EXPR_ARR_INDEX:
         return display_expr(out, expr->as.arr_index.arr) &&
-               fprintf_s(out, "[") &&
+               fprintf_s(out, "[") >= 0 &&
                display_expr(out, expr->as.arr_index.index) &&
-               fprintf_s(out, "]");
+               fprintf_s(out, "]") >= 0;
+    case EXPR_CALL:
+        return display_expr(out, expr->as.call.callable) &&
+               fprintf_s(out, "(") >= 0 &&
+               display_arglist(out, expr->as.call.args) &&
+               fprintf_s(out, ")") >= 0;
     case EXPR_DOT_FIELD_ACCESS:
         return display_expr(out, expr->as.field_access.object) &&
-               fprintf_s(out, ".%s", expr->as.field_access.field);
+               fprintf_s(out, ".%s", expr->as.field_access.field) >= 0;
     case EXPR_ARROW_FIELD_ACCESS:
         return display_expr(out, expr->as.field_access.object) &&
-               fprintf_s(out, "->%s", expr->as.field_access.field);
+               fprintf_s(out, "->%s", expr->as.field_access.field) >= 0;
     case EXPR_POSTFIX_PLUS_PLUS:
         return display_expr(out, expr->as.postfix_plus_plus.operand) &&
-               fprintf_s(out, "++");
+               fprintf_s(out, "++") >= 0;
     case EXPR_REFERENCE:
-        return fprintf_s(out, "&") &&
+        return fprintf_s(out, "&") >= 0 &&
                display_expr(out, expr->as.unary_op.operand);
     case EXPR_DEREFERENCE:
-        return fprintf_s(out, "*") &&
+        return fprintf_s(out, "*") >= 0 &&
                display_expr(out, expr->as.unary_op.operand);
     case EXPR_NEGATION:
-        return fprintf_s(out, "!") &&
+        return fprintf_s(out, "!") >= 0 &&
                display_expr(out, expr->as.unary_op.operand);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
     }
+}
+
+struct ArgList
+{
+    struct Expr *expr;
+    struct ArgList *next;
+};
+
+bool display_arglist(FILE *out, struct ArgList *list)
+{
+    if (!list)
+        return true;
+
+    if (!list->next)
+        return display_expr(out, list->expr);
+
+    return display_expr(out, list->expr) &&
+           fprintf_s(out, ", ") >= 0 &&
+           display_arglist(out, list->next);
 }
 
 // PrimaryExpression
@@ -583,7 +616,20 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
         }
 
         // FUNCTION CALL
-        // TODOOOOOOOOOOOOOOOOOOOOOOOOO
+        if (lexer_accept(lxr, TOK_OPEN_PAREN))
+        {
+            struct ArgList *arg_list = parse_argument_expression_list(lxr);
+            if (!lexer_expect(lxr, TOK_CLOSE_PAREN))
+                return NULL;
+
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_CALL;
+            new_expr->as.call.callable = expr;
+            new_expr->as.call.args = arg_list;
+
+            expr = new_expr;
+            continue;
+        }
 
         // DOT FIELD ACCESS
         if (lexer_accept(lxr, TOK_DOT) &&
@@ -628,11 +674,39 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
 }
 
 // ArgumentExpressionList
-//      <- AssignmentExpression (COMMA AssignmentExpression)*
-struct Expr *parse_argument_expression_list(struct Lexer *lxr)
+//      <- <empty string>
+//       / AssignmentExpression (COMMA AssignmentExpression)*
+struct ArgList *parse_argument_expression_list(struct Lexer *lxr)
 {
-    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
-    exit(1);
+    struct ArgList *first, *last;
+    struct Expr *expr;
+
+    if (!(expr = parse_assignment_expression(lxr)))
+        return (struct ArgList *)NULL;
+
+    first = malloc(sizeof(*first));
+    first->expr = expr;
+    first->next = NULL;
+
+    last = first;
+
+    while (lexer_accept(lxr, TOK_COMMA))
+    {
+        struct ArgList *new_args;
+        if ((expr = parse_assignment_expression(lxr)))
+        {
+            new_args = malloc(sizeof(*new_args));
+            new_args->expr = expr;
+            new_args->next = NULL;
+
+            last->next = new_args;
+            last = new_args;
+            continue;
+        }
+        break;
+    }
+
+    return first;
 }
 
 // UnaryExpression
@@ -907,6 +981,27 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  my_dog->birth_date[100].year++ ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  my_func(1, 2, 3) ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  my_func(1, 2, 3, ) ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  my_func() ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
