@@ -2,7 +2,376 @@
 #include <stdlib.h> // atoi, malloc, free
 #include "lex.h"    // lex, lex_all_input
 
-// Parasitic C
+// FORWARD DECLARATIONS
+struct Type *parse_type_specifier(struct Lexer *);
+struct Expr *parse_constant(struct Lexer *);
+struct Expr *parse_expression(struct Lexer *);
+struct Expr *parse_cast_expression(struct Lexer *);
+
+// #-------------------------------------------------------------------------
+// #  A.2.4  External definitions
+// #-------------------------------------------------------------------------
+
+// TranslationUnit <- Spacing ( ExternalDeclaration / SEMI ) * EOT
+
+// ExternalDeclaration <- FunctionDefinition / Declaration
+
+// FunctionDefinition <- DeclarationSpecifiers Declarator DeclarationList? CompoundStatement
+
+// DeclarationList <- Declaration+
+
+// #-------------------------------------------------------------------------
+// #  A.2.2  Declarations
+// #-------------------------------------------------------------------------
+
+struct Decl
+{
+    enum
+    {
+        DECL_POUND_INCLUDE,
+    } tag;
+
+    union
+    {
+        struct
+        {
+            char *filename;
+            enum
+            {
+                POUND_INCLUDE_ANGLE_BRACKETS,
+                POUND_INCLUDE_DOUBLE_QUOTES,
+            } kind;
+        } pound_include;
+
+    } as;
+};
+
+int display_decl(FILE *out, struct Decl *decl)
+{
+    switch (decl->tag)
+    {
+    case DECL_POUND_INCLUDE:
+        fprintf_s(out, "#include ");
+        if (decl->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
+        {
+            return fprintf_s(out, "<%s>", decl->as.pound_include.filename);
+        }
+        else
+        {
+            return fprintf_s(out, "\"%s\"", decl->as.pound_include.filename);
+        }
+    default:
+        perror("Invalid Decl tag");
+        exit(1);
+    }
+}
+
+// Declaration <- DeclarationSpecifiers InitDeclaratorList? SEMI
+
+// DeclarationSpecifiers
+//    <- (( StorageClassSpecifier
+//        / TypeQualifier
+//        / FunctionSpecifier
+//        )*
+//        TypedefName
+//        ( StorageClassSpecifier
+//        / TypeQualifier
+//        / FunctionSpecifier
+//        )*
+//       )
+//     / ( StorageClassSpecifier
+//       / TypeSpecifier
+//       / TypeQualifier
+//       / FunctionSpecifier
+//       )+
+
+// DeclarationPoundInclude       # :NEW
+//      <- POUND 'include' (angle_bracket_string / double_quoted_string)
+struct Decl *parse_decl_pound_include(struct Lexer *lxr)
+{
+    if (!lexer_accept(lxr, TOK_POUND))
+        return NULL;
+
+    if (!lexer_expect(lxr, TOK_INCLUDE))
+        return NULL;
+
+    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
+        return NULL;
+
+    struct Decl *decl = malloc(sizeof(*decl));
+    decl->tag = DECL_POUND_INCLUDE;
+    decl->as.pound_include.filename = lxr->token;
+
+    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
+        decl->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
+    else
+        decl->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
+
+    return decl;
+}
+
+// InitDeclaratorList <- InitDeclarator (COMMA InitDeclarator)*
+
+// InitDeclarator <- Declarator (EQU Initializer)?
+
+// StorageClassSpecifier
+//    <- TYPEDEF
+//     / EXTERN
+//     / STATIC
+//     / AUTO
+//     / REGISTER
+//     / ATTRIBUTE LPAR LPAR (!RPAR .)* RPAR RPAR
+
+struct Type
+{
+    enum
+    {
+        // Atomic types
+        TYPE_INT,
+        TYPE_BOOL,
+        TYPE_CHAR,
+        TYPE_VOID,
+
+        // Compound types
+        // TYPE_PTR,
+        // TYPE_ARRAY,
+        // TYPE_STRUCT,
+        // TYPE_ENUM,
+        // TYPE_UNION,
+    } tag;
+
+    // union
+    // {
+    // } as;
+};
+
+int display_type(FILE *out, struct Type *type)
+{
+    switch (type->tag)
+    {
+    case TYPE_INT:
+        return fprintf_s(out, "int");
+    case TYPE_BOOL:
+        return fprintf_s(out, "bool");
+    case TYPE_CHAR:
+        return fprintf_s(out, "char");
+    case TYPE_VOID:
+        return fprintf_s(out, "void");
+    default:
+        perror("Invalid Type tag");
+        exit(1);
+    }
+}
+
+// TypeSpecifier
+//    <- VOID
+//     / CHAR
+//     / SHORT # :IGNORED
+//     / INT
+//     / LONG # :IGNORED
+//     / FLOAT # :IGNORED
+//     / DOUBLE # :IGNORED
+//     / SIGNED # :IGNORED
+//     / UNSIGNED # :IGNORED
+//     / BOOL
+//     / COMPLEX # :IGNORED
+//     / StructOrUnionSpecifier # :TODO
+//     / EnumSpecifier # :TODO
+struct Type *parse_type_specifier(struct Lexer *lxr)
+{
+    if (!(lexer_accept(lxr, TOK_VOID) ||
+          lexer_accept(lxr, TOK_CHAR) ||
+          lexer_accept(lxr, TOK_INT) ||
+          lexer_accept(lxr, TOK_BOOL)))
+        return NULL;
+
+    struct Type *type = malloc(sizeof(*type));
+
+    switch (lxr->tok_tag)
+    {
+    case TOK_VOID:
+        type->tag = TYPE_VOID;
+        break;
+    case TOK_CHAR:
+        type->tag = TYPE_CHAR;
+        break;
+    case TOK_INT:
+        type->tag = TYPE_INT;
+        break;
+    case TOK_BOOL:
+        type->tag = TYPE_BOOL;
+        break;
+
+    default:
+        puts("unknown type token!\n");
+        exit(1);
+    }
+
+    return type;
+}
+
+// StructOrUnionSpecifier
+//    <- StructOrUnion
+//       ( Identifier? LWING StructDeclaration* RWING
+//       / Identifier
+//       )
+
+// StructOrUnion <- STRUCT / UNION
+
+// StructDeclaration <- ( SpecifierQualifierList StructDeclaratorList? )? SEMI
+
+// SpecifierQualifierList
+//    <- ( TypeQualifier*
+//         TypedefName
+//         TypeQualifier*
+//       )
+//     / ( TypeSpecifier
+//       / TypeQualifier
+//       )+
+
+// StructDeclaratorList <- StructDeclarator (COMMA StructDeclarator)*
+
+// StructDeclarator
+//    <- Declarator? COLON ConstantExpression
+//     / Declarator
+
+// EnumSpecifier
+//     <- ENUM
+//       ( Identifier? LWING EnumeratorList COMMA? RWING
+//       / Identifier
+//       )
+
+// EnumeratorList <- Enumerator (COMMA Enumerator)*
+
+// Enumerator <- EnumerationConstant (EQU ConstantExpression)?
+
+// TypeQualifier
+//    <- CONST
+//     / RESTRICT
+//     / VOLATILE
+//     / DECLSPEC LPAR Identifier RPAR
+
+// FunctionSpecifier <- INLINE / STDCALL
+
+// Declarator <- Pointer? DirectDeclarator
+
+// DirectDeclarator
+//    <- ( Identifier
+//       / LPAR Declarator RPAR
+//       )
+//       ( LBRK TypeQualifier* AssignmentExpression? RBRK
+//       / LBRK STATIC TypeQualifier* AssignmentExpression RBRK
+//       / LBRK TypeQualifier+ STATIC AssignmentExpression RBRK
+//       / LBRK TypeQualifier* STAR RBRK
+//       / LPAR ParameterTypeList RPAR
+//       / LPAR IdentifierList? RPAR
+//       )*
+
+// Pointer <- ( STAR TypeQualifier* )+
+
+// ParameterTypeList <- ParameterList (COMMA ELLIPSIS)?
+
+// ParameterList <- ParameterDeclaration (COMMA ParameterDeclaration)*
+
+// ParameterDeclaration
+//    <- DeclarationSpecifiers
+//       ( Declarator
+//       / AbstractDeclarator
+//       )?
+
+// IdentifierList <- Identifier (COMMA Identifier)*
+
+// TypeName
+//      <- SpecifierQualifierList AbstractDeclarator?
+struct Type *parse_type_name(struct Lexer *lxr)
+{
+    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+    exit(1);
+}
+
+// AbstractDeclarator
+//    <- Pointer? DirectAbstractDeclarator
+//     / Pointer
+
+// DirectAbstractDeclarator
+//    <- ( LPAR AbstractDeclarator RPAR
+//       / LBRK (AssignmentExpression / STAR)? RBRK
+//       / LPAR ParameterTypeList? RPAR
+//       )
+//       ( LBRK (AssignmentExpression / STAR)? RBRK
+//       / LPAR ParameterTypeList? RPAR
+//       )*
+
+// TypedefName <-Identifier #{&TypedefName}
+
+// Initializer
+//    <- AssignmentExpression
+//     / LWING InitializerList COMMA? RWING
+
+// InitializerList <- Designation? Initializer (COMMA Designation? Initializer)*
+
+// Designation <- Designator+ EQU
+
+// Designator
+//    <- LBRK ConstantExpression RBRK
+//     / DOT Identifier
+
+// #-------------------------------------------------------------------------
+// #  A.2.3  Statements
+// #-------------------------------------------------------------------------
+
+struct Stmt
+{
+    int placeholder;
+};
+
+int display_stmt(struct Stmt *stmt)
+{
+    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+    exit(1);
+}
+
+// Statement
+//    <- LabeledStatement
+//     / CompoundStatement
+//     / ExpressionStatement
+//     / SelectionStatement
+//     / IterationStatement
+//     / JumpStatement
+struct Stmt *parse_statement(struct Lexer *lxr)
+{
+    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+    exit(1);
+}
+
+// LabeledStatement
+//    <- Identifier COLON Statement
+//     / CASE ConstantExpression COLON Statement
+//     / DEFAULT COLON Statement
+
+// CompoundStatement <- LWING ( Declaration / Statement )* RWING
+
+// ExpressionStatement <- Expression? SEMI
+
+// SelectionStatement
+//    <- IF LPAR Expression RPAR Statement (ELSE Statement)?
+//     / SWITCH LPAR Expression RPAR Statement
+
+// IterationStatement
+//    <- WHILE LPAR Expression RPAR Statement
+//     / DO Statement WHILE LPAR Expression RPAR SEMI
+//     / FOR LPAR Expression? SEMI Expression? SEMI Expression? RPAR Statement
+//     / FOR LPAR Declaration Expression? SEMI Expression? RPAR Statement
+
+// JumpStatement
+//    <- GOTO Identifier SEMI
+//     / CONTINUE SEMI
+//     / BREAK SEMI
+//     / RETURN Expression? SEMI
+
+// #-------------------------------------------------------------------------
+// #  A.2.1  Expressions
+// #-------------------------------------------------------------------------
 
 struct Expr
 {
@@ -81,62 +450,6 @@ struct Expr
     } as;
 };
 
-struct Type
-{
-    enum
-    {
-        // Atomic types
-        TYPE_INT,
-        TYPE_BOOL,
-        TYPE_CHAR,
-        TYPE_VOID,
-
-        // Compound types
-        // TYPE_PTR,
-        // TYPE_ARRAY,
-        // TYPE_STRUCT,
-        // TYPE_ENUM,
-        // TYPE_UNION,
-    } tag;
-
-    // union
-    // {
-    // } as;
-};
-
-// struct Stmt
-// {
-//     enum {} tag;
-//     union {} as;
-// };
-
-// Top-level declaration or compiler directive
-struct Item
-{
-    enum
-    {
-        ITEM_POUND_INCLUDE,
-    } tag;
-
-    union
-    {
-        struct
-        {
-            char *filename;
-            enum
-            {
-                POUND_INCLUDE_ANGLE_BRACKETS,
-                POUND_INCLUDE_DOUBLE_QUOTES,
-            } kind;
-        } pound_include;
-
-        // struct
-        // {
-        //     ...
-        // } fn_decl;
-    } as;
-};
-
 int display_expr(FILE *out, struct Expr *expr)
 {
     switch (expr->tag)
@@ -182,135 +495,32 @@ int display_expr(FILE *out, struct Expr *expr)
         return fprintf_s(out, "!") &&
                display_expr(out, expr->as.unary_op.operand);
     default:
-        perror("Invalid Expr tag");
+        printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
     }
 }
 
-int display_type(FILE *out, struct Type *type)
-{
-    switch (type->tag)
-    {
-    case TYPE_INT:
-        return fprintf_s(out, "int");
-    case TYPE_BOOL:
-        return fprintf_s(out, "bool");
-    case TYPE_CHAR:
-        return fprintf_s(out, "char");
-    case TYPE_VOID:
-        return fprintf_s(out, "void");
-    default:
-        perror("Invalid Type tag");
-        exit(1);
-    }
-}
-
-int display_item(FILE *out, struct Item *item)
-{
-    switch (item->tag)
-    {
-    case ITEM_POUND_INCLUDE:
-        fprintf_s(out, "#include ");
-        if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
-        {
-            return fprintf_s(out, "<%s>", item->as.pound_include.filename);
-        }
-        else
-        {
-            return fprintf_s(out, "\"%s\"", item->as.pound_include.filename);
-        }
-    default:
-        perror("Invalid Item tag");
-        exit(1);
-    }
-}
-
-//////////////////////////// EXPRS ////////////////////////////////////////////
-
-struct Expr *parse_expr_literal_int(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_LITERAL_INT))
-        return NULL;
-
-    struct Expr *expr = malloc(sizeof(*expr));
-    expr->tag = EXPR_LITERAL_INT;
-    expr->as.literal_int.value = atoi(lxr->token);
-    return expr;
-}
-
-struct Expr *parse_expr_literal_char(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_LITERAL_CHAR))
-        return NULL;
-
-    struct Expr *expr = malloc(sizeof(*expr));
-    expr->tag = EXPR_LITERAL_CHAR;
-    expr->as.literal_char.value = lxr->token;
-    return expr;
-}
-
-struct Expr *parse_expr_literal_string(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_LITERAL_STRING))
-        return NULL;
-
-    struct Expr *expr = malloc(sizeof(*expr));
-    expr->tag = EXPR_LITERAL_STRING;
-    expr->as.literal_string.value = lxr->token;
-    return expr;
-}
-
-struct Expr *parse_expr_literal_bool(struct Lexer *lxr)
-{
-    if (!(lxr->next_tok_tag == TOK_TRUE || lxr->next_tok_tag == TOK_FALSE))
-        return NULL;
-
-    lexer_advance(lxr);
-    struct Expr *expr = malloc(sizeof(*expr));
-    expr->tag = EXPR_LITERAL_BOOL;
-    expr->as.literal_bool.value = (lxr->tok_tag == TOK_TRUE);
-    return expr;
-}
-
-struct Expr *parse_constant_or_string_expr(struct Lexer *lxr)
-{
-    struct Expr *expr;
-
-    if ((expr = parse_expr_literal_int(lxr)))
-        return expr;
-
-    if ((expr = parse_expr_literal_bool(lxr)))
-        return expr;
-
-    if ((expr = parse_expr_literal_char(lxr)))
-        return expr;
-
-    if ((expr = parse_expr_literal_string(lxr)))
-        return expr;
-
-    return NULL;
-}
-
-struct Expr *parse_primary_expression(struct Lexer *);
-struct Expr *parse_postfix_expression(struct Lexer *);
-struct Expr *parse_cast_expression(struct Lexer *);
-struct Expr *parse_unary_expression(struct Lexer *);
-struct Expr *parse_assignment_expression(struct Lexer *);
-
-struct Expr *parse_expression(struct Lexer *lxr)
-{
-    return parse_assignment_expression(lxr);
-}
-
-// primary_expression
-// 	: IDENTIFIER
-// 	| CONSTANT
-// 	| STRING_LITERAL
-// 	| '(' expression ')'
-// 	;
+// PrimaryExpression
+//    <- StringLiteral
+//     / Constant
+//     / Identifier
+//     / LPAR Expression RPAR
 struct Expr *parse_primary_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
+
+    if (lexer_accept(lxr, TOK_LITERAL_STRING))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_STRING;
+        expr->as.literal_string.value = lxr->token;
+        return expr;
+    }
+
+    if ((expr = parse_constant(lxr)))
+    {
+        return expr;
+    }
 
     if (lexer_accept(lxr, TOK_IDENT))
     {
@@ -319,43 +529,126 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
         expr->as.ident.value = lxr->token;
         return expr;
     }
-    if ((expr = parse_constant_or_string_expr(lxr)))
-    {
-        return expr;
-    }
+
     if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
         (expr = parse_expression(lxr)) &&
         lexer_expect(lxr, TOK_CLOSE_PAREN))
     {
-        // NOTE: We need to parse parenthesized exprs as their own thing so that
-        // they can be printed into the output file without changing precedence
-        // of operations.
+        // NOTE: We need to store parenthesized exprs as their own AST node so
+        // that they can be printed into the output file without changing
+        // precedence of operations.
         struct Expr *paren_expr = malloc(sizeof(*paren_expr));
         paren_expr->tag = EXPR_PARENTHESIZED;
         paren_expr->as.parenthesized.child = expr;
         return paren_expr;
     }
+
     return NULL;
 }
 
-// cast_expression
-// 	: unary_expression
-// 	| '(' type_name ')' cast_expression
-// 	;
-struct Expr *parse_cast_expression(struct Lexer *lxr)
+// PostfixExpression
+//    <- ( PrimaryExpression
+//       / LPAR TypeName RPAR LWING InitializerList COMMA? RWING  # :TODO: parse compound literals https://en.cppreference.com/w/c/language/compound_literal
+//       )
+//       ( LBRK Expression RBRK
+//       / LPAR ArgumentExpressionList? RPAR  # :TODO
+//       / DOT Identifier
+//       / PTR Identifier
+//       / INC
+//       / DEC          # :IGNORED
+//       )*
+struct Expr *parse_postfix_expression(struct Lexer *lxr)
 {
-    // TODO: actually handle cast expressions.
-    return parse_unary_expression(lxr);
+    struct Expr *expr;
+
+    if (!(expr = parse_primary_expression(lxr)))
+        return NULL;
+
+    while (true)
+    {
+
+        // ARRAY INDEX EXPRESSION
+        struct Expr *index;
+        if (lexer_accept(lxr, TOK_OPEN_BRACK) &&
+            (index = parse_expression(lxr)) &&
+            lexer_expect(lxr, TOK_CLOSE_BRACK))
+        {
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_ARR_INDEX;
+            new_expr->as.arr_index.arr = expr;
+            new_expr->as.arr_index.index = index;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // FUNCTION CALL
+        // TODOOOOOOOOOOOOOOOOOOOOOOOOO
+
+        // DOT FIELD ACCESS
+        if (lexer_accept(lxr, TOK_DOT) &&
+            lexer_expect(lxr, TOK_IDENT))
+        {
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_DOT_FIELD_ACCESS;
+            new_expr->as.field_access.object = expr;
+            new_expr->as.field_access.field = lxr->token;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // ARROW FIELD ACCESS
+        if (lexer_accept(lxr, TOK_ARROW) &&
+            lexer_expect(lxr, TOK_IDENT))
+        {
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_ARROW_FIELD_ACCESS;
+            new_expr->as.field_access.object = expr;
+            new_expr->as.field_access.field = lxr->token;
+
+            expr = new_expr;
+            continue;
+        }
+
+        // POSTFIX PLUS PLUS
+        if (lexer_accept(lxr, TOK_PLUS_PLUS))
+        {
+            struct Expr *new_expr = malloc(sizeof(*new_expr));
+            new_expr->tag = EXPR_POSTFIX_PLUS_PLUS;
+            new_expr->as.postfix_plus_plus.operand = expr;
+
+            expr = new_expr;
+            continue;
+        }
+
+        break;
+    }
+    return expr;
 }
 
-// unary_expression
-// 	: postfix_expression
-// // | '++' unary_expression
-// // | '--' unary_expression
-// 	| ('&' | '*' | '!') cast_expression
-// 	| SIZEOF unary_expression
-// 	| SIZEOF '(' type_name ')'
-// 	;
+// ArgumentExpressionList
+//      <- AssignmentExpression (COMMA AssignmentExpression)*
+struct Expr *parse_argument_expression_list(struct Lexer *lxr)
+{
+    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+    exit(1);
+}
+
+// UnaryExpression
+//    <- PostfixExpression
+//     / INC UnaryExpression # :IGNORED
+//     / DEC UnaryExpression # :IGNORED
+//     / UnaryOperator CastExpression
+//     / SIZEOF (UnaryExpression / LPAR TypeName RPAR )
+//
+// UnaryOperator
+//    <- AND
+//     / STAR
+//     / PLUS
+//     / MINUS
+//     / TILDA
+//     / BANG
 struct Expr *parse_unary_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
@@ -399,239 +692,177 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
         return expr;
     }
 
+    if (lexer_accept(lxr, TOK_SIZEOF))
+    {
+        if ((expr = parse_unary_expression(lxr)))
+        {
+            // TODOOOOOOOOOOOO
+            printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+            exit(1);
+        }
+
+        struct Type *type;
+        if (lexer_expect(lxr, TOK_OPEN_PAREN) &&
+            (type = parse_type_name(lxr)) &&
+            lexer_expect(lxr, TOK_CLOSE_PAREN))
+        {
+            // TODOOOOOOOOOOOO
+            printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__);
+            exit(1);
+        }
+
+        return NULL;
+    }
+
     return NULL;
 }
 
-// multiplicative_expression
-// 	: cast_expression
-// 	| multiplicative_expression '*' cast_expression
-// 	| multiplicative_expression '/' cast_expression
-// 	| multiplicative_expression '%' cast_expression
-// 	;
+// CastExpression
+//      <- (LPAR TypeName RPAR CastExpression)
+//       / UnaryExpression
+struct Expr *parse_cast_expression(struct Lexer *lxr)
+{
+    // TODO: actually handle cast expressions.
+    return parse_unary_expression(lxr);
+}
+
+// MultiplicativeExpression
+//      <- CastExpression ((STAR / DIV / MOD) CastExpression)*
 struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
 {
     return parse_cast_expression(lxr);
 }
 
-// additive_expression
-// 	: multiplicative_expression
-// 	| additive_expression '+' multiplicative_expression
-// 	| additive_expression '-' multiplicative_expression
-// 	;
+// AdditiveExpression
+//      <- MultiplicativeExpression ((PLUS / MINUS) MultiplicativeExpression)*
 struct Expr *parse_additive_expression(struct Lexer *lxr)
 {
     return parse_multiplicative_expression(lxr);
 }
 
-// relational_expression
-// 	: additive_expression
-// 	| relational_expression '<' shift_expression
-// 	| relational_expression '>' shift_expression
-// 	| relational_expression LE_OP shift_expression
-// 	| relational_expression GE_OP shift_expression
-// 	;
-struct Expr *parse_relational_expression(struct Lexer *lxr)
+// ShiftExpression
+//      <- AdditiveExpression ((LEFT / RIGHT) AdditiveExpression)*
+struct Expr *parse_shift_expression(struct Lexer *lxr)
 {
     return parse_additive_expression(lxr);
 }
 
-// equality_expression
-// 	: relational_expression
-// 	| equality_expression == relational_expression
-// 	| equality_expression != relational_expression
-// 	;
+// RelationalExpression
+//      <- ShiftExpression ((LE / GE / LT / GT) ShiftExpression)*
+struct Expr *parse_relational_expression(struct Lexer *lxr)
+{
+    return parse_shift_expression(lxr);
+}
+
+// EqualityExpression
+//      <- RelationalExpression ((EQUEQU / BANGEQU) RelationalExpression)*
 struct Expr *parse_equality_expression(struct Lexer *lxr)
 {
     return parse_relational_expression(lxr);
 }
 
-// logical_and_expression
-// 	: equality_expression
-// 	| logical_and_expression && inclusive_or_expression
-// 	;
+// ANDExpression <- EqualityExpression (AND EqualityExpression)*
+
+// ExclusiveORExpression <- ANDExpression (HAT ANDExpression)*
+
+// InclusiveORExpression <- ExclusiveORExpression (OR ExclusiveORExpression)*
+
+// LogicalANDExpression
+//      <- InclusiveORExpression (ANDAND InclusiveORExpression)*
 struct Expr *parse_logical_and_expression(struct Lexer *lxr)
 {
     return parse_equality_expression(lxr);
 }
 
-// logical_or_expression
-// 	: logical_and_expression
-// 	| logical_or_expression || logical_and_expression
-// 	;
+// LogicalORExpression
+//      <- LogicalANDExpression (OROR LogicalANDExpression)*
 struct Expr *parse_logical_or_expression(struct Lexer *lxr)
 {
     return parse_logical_and_expression(lxr);
 }
 
-// conditional_expression
-// 	: logical_or_expression
-// 	| logical_or_expression '?' expression ':' conditional_expression
-// 	;
+// ConditionalExpression
+//      <- LogicalORExpression (QUERY Expression COLON LogicalORExpression)*
 struct Expr *parse_conditional_expression(struct Lexer *lxr)
 {
     return parse_logical_or_expression(lxr);
 }
 
-// assignment_expression
-// 	: conditional_expression
-// 	| unary_expression '=' assignment_expression
-// 	;
+// AssignmentExpression
+//    <- UnaryExpression AssignmentOperator AssignmentExpression
+//     / ConditionalExpression
+//
+// AssignmentOperator
+//    <- EQU
+//     / STAREQU
+//     / DIVEQU
+//     / MODEQU
+//     / PLUSEQU
+//     / MINUSEQU
+//     / LEFTEQU
+//     / RIGHTEQU
+//     / ANDEQU
+//     / HATEQU
+//     / OREQU
 struct Expr *parse_assignment_expression(struct Lexer *lxr)
 {
     return parse_conditional_expression(lxr);
 }
 
-// struct Expr *parse_argument_expression_list(struct Lexer *lxr)
-// {
-// }
-
-// postfix_expression -->
-//     primary_expression {
-//         '[' expression ']'
-//         '(' ')'
-//         '(' argument_expression_list ')'
-//         '.' IDENTIFIER
-//         '->' IDENTIFIER
-//         '++'
-//         '--'
-//     }
-struct Expr *parse_postfix_expression(struct Lexer *lxr)
+// Expression
+//      <- AssignmentExpression (COMMA AssignmentExpression)*
+struct Expr *parse_expression(struct Lexer *lxr)
 {
-    struct Expr *expr;
-
-    if (!(expr = parse_primary_expression(lxr)))
-        return NULL;
-
-    while (true)
-    {
-
-        // ARRAY INDEX EXPRESSION
-        if (lexer_accept(lxr, TOK_OPEN_BRACK))
-        {
-            struct Expr *index;
-            if (!(index = parse_expression(lxr)))
-                return NULL;
-            lexer_expect(lxr, TOK_CLOSE_BRACK);
-
-            struct Expr *new_expr = malloc(sizeof(*new_expr));
-            new_expr->tag = EXPR_ARR_INDEX;
-            new_expr->as.arr_index.arr = expr;
-            new_expr->as.arr_index.index = index;
-
-            expr = new_expr;
-            continue;
-        }
-
-        // DOT FIELD ACCESS
-        if (lexer_accept(lxr, TOK_DOT))
-        {
-            lexer_expect(lxr, TOK_IDENT);
-
-            struct Expr *new_expr = malloc(sizeof(*new_expr));
-            new_expr->tag = EXPR_DOT_FIELD_ACCESS;
-            new_expr->as.field_access.object = expr;
-            new_expr->as.field_access.field = lxr->token;
-
-            expr = new_expr;
-            continue;
-        }
-
-        // ARROW FIELD ACCESS
-        if (lexer_accept(lxr, TOK_ARROW))
-        {
-            lexer_expect(lxr, TOK_IDENT);
-
-            struct Expr *new_expr = malloc(sizeof(*new_expr));
-            new_expr->tag = EXPR_ARROW_FIELD_ACCESS;
-            new_expr->as.field_access.object = expr;
-            new_expr->as.field_access.field = lxr->token;
-
-            expr = new_expr;
-            continue;
-        }
-
-        // POSTFIX PLUS PLUS
-        if (lexer_accept(lxr, TOK_PLUS_PLUS))
-        {
-            struct Expr *new_expr = malloc(sizeof(*new_expr));
-            new_expr->tag = EXPR_POSTFIX_PLUS_PLUS;
-            new_expr->as.postfix_plus_plus.operand = expr;
-
-            expr = new_expr;
-            continue;
-        }
-
-        break;
-    }
-    return expr;
+    return parse_assignment_expression(lxr);
 }
 
-//////////////////////////// TYPES ////////////////////////////////////////////
-
-struct Type *parse_atomic_type(struct Lexer *lxr)
+// ConstantExpression <- ConditionalExpression
+struct Expr *parse_constant_expression(struct Lexer *lxr)
 {
-    if (!(lxr->next_tok_tag == TOK_INT ||
-          lxr->next_tok_tag == TOK_BOOL ||
-          lxr->next_tok_tag == TOK_CHAR ||
-          lxr->next_tok_tag == TOK_VOID))
-        return NULL;
+    return parse_conditional_expression(lxr);
+}
 
-    lexer_advance(lxr);
+// #-------------------------------------------------------------------------
+// #  A.1.5  Constants
+// #-------------------------------------------------------------------------
 
-    struct Type *type = malloc(sizeof(*type));
-
-    switch (lxr->tok_tag)
+// Constant
+//    <- FloatConstant         # :TODO
+//     / IntegerConstant       # Note: can be a prefix of Float Constant!
+//     / EnumerationConstant   # :IGNORED
+//     / BooleanConstant       # :NEW
+//     / CharacterConstant
+struct Expr *parse_constant(struct Lexer *lxr)
+{
+    if (lexer_accept(lxr, TOK_LITERAL_INT))
     {
-    case TOK_INT:
-        type->tag = TYPE_INT;
-        break;
-    case TOK_BOOL:
-        type->tag = TYPE_BOOL;
-        break;
-    case TOK_CHAR:
-        type->tag = TYPE_CHAR;
-        break;
-    case TOK_VOID:
-        type->tag = TYPE_VOID;
-        break;
-
-    default:
-        perror("unreachable");
-        return NULL;
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_INT;
+        expr->as.literal_int.value = atoi(lxr->token);
+        return expr;
     }
 
-    return type;
+    if (lexer_accept(lxr, TOK_TRUE) || lexer_accept(lxr, TOK_FALSE))
+    {
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_BOOL;
+        expr->as.literal_bool.value = (lxr->tok_tag == TOK_TRUE);
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_LITERAL_CHAR))
+    {
+        struct Expr *expr = malloc(sizeof(*expr));
+        expr->tag = EXPR_LITERAL_CHAR;
+        expr->as.literal_char.value = lxr->token;
+        return expr;
+    }
+
+    return NULL;
 }
 
-//////////////////////////// STMTS ////////////////////////////////////////////
-
-// TODO
-
-//////////////////////////// ITEMS ////////////////////////////////////////////
-
-struct Item *parse_item_pound_include(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_POUND))
-        return NULL;
-
-    if (!lexer_expect(lxr, TOK_INCLUDE))
-        return NULL;
-
-    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
-        return NULL;
-
-    struct Item *item = malloc(sizeof(*item));
-    item->tag = ITEM_POUND_INCLUDE;
-    item->as.pound_include.filename = lxr->token;
-
-    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
-        item->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
-    else
-        item->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
-
-    return item;
-}
-
+///////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// TESTS ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 void test_parse_exprs()
@@ -696,28 +927,28 @@ void test_parse_types()
 
     printf("\n");
     lxr = lexer_init("  int  ");
-    if ((type = parse_atomic_type(&lxr)))
+    if ((type = parse_type_specifier(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  bool  ");
-    if ((type = parse_atomic_type(&lxr)))
+    if ((type = parse_type_specifier(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  char  ");
-    if ((type = parse_atomic_type(&lxr)))
+    if ((type = parse_type_specifier(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  void  ");
-    if ((type = parse_atomic_type(&lxr)))
+    if ((type = parse_type_specifier(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
@@ -727,22 +958,22 @@ void test_parse_stmts()
 {
 }
 
-void test_parse_items()
+void test_parse_decls()
 {
     struct Lexer lxr;
-    struct Item *item;
+    struct Decl *decl;
 
     printf("\n");
     lxr = lexer_init("  #include <stdio.h>  ");
-    if ((item = parse_item_pound_include(&lxr)))
-        display_item(stdout, item);
+    if ((decl = parse_decl_pound_include(&lxr)))
+        display_decl(stdout, decl);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  #include \"my_file.h\"  ");
-    if ((item = parse_item_pound_include(&lxr)))
-        display_item(stdout, item);
+    if ((decl = parse_decl_pound_include(&lxr)))
+        display_decl(stdout, decl);
     else
         perror("TEST FAILED");
 }
@@ -753,6 +984,6 @@ void test_parser()
     test_parse_exprs();
     test_parse_types();
     test_parse_stmts();
-    test_parse_items();
+    test_parse_decls();
     printf("\n\n%s\n", "Tests finished!");
 }
