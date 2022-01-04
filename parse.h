@@ -1161,7 +1161,7 @@ struct Expr *parse_assignment_expression(struct Lexer *lxr)
 }
 
 // Expression
-//      <- AssignmentExpression (COMMA AssignmentExpression)*
+//      <- AssignmentExpression (COMMA AssignmentExpression)* # :IGNORED
 struct Expr *parse_expression(struct Lexer *lxr)
 {
     return parse_assignment_expression(lxr);
