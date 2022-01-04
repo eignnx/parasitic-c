@@ -414,6 +414,9 @@ struct Expr
         EXPR_GTE,
         EXPR_LT,
         EXPR_LTE,
+
+        EXPR_EQUAL,
+        EXPR_NOT_EQUAL,
     } tag;
 
     union
@@ -581,6 +584,10 @@ bool display_expr(FILE *out, struct Expr *expr)
         return display_bin_op(out, "<", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_LTE:
         return display_bin_op(out, "<=", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_EQUAL:
+        return display_bin_op(out, "==", expr->as.binary_op.x, expr->as.binary_op.y);
+    case EXPR_NOT_EQUAL:
+        return display_bin_op(out, "!=", expr->as.binary_op.x, expr->as.binary_op.y);
     default:
         printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
         exit(1);
@@ -901,6 +908,7 @@ struct Expr *parse_cast_expression(struct Lexer *lxr)
 //      <- CastExpression ((STAR / DIV / MOD) CastExpression)*
 struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
 {
+    // TODO: impl multiplication, division, modulo
     return parse_cast_expression(lxr);
 }
 
@@ -994,13 +1002,46 @@ struct Expr *parse_relational_expression(struct Lexer *lxr)
 //      <- RelationalExpression ((EQUEQU / BANGEQU) RelationalExpression)*
 struct Expr *parse_equality_expression(struct Lexer *lxr)
 {
-    return parse_relational_expression(lxr);
+    struct Expr *accum;
+
+    if (!(accum = parse_relational_expression(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_EQUAL_EQUAL) ||
+           lexer_accept(lxr, TOK_NOT_EQUAL))
+    {
+        struct Expr *y;
+
+        // Save the token type.
+        enum TokTag op = lxr->tok_tag;
+
+        if (!(y = parse_relational_expression(lxr)))
+        {
+            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
+            exit(1);
+        }
+
+        struct Expr *new_expr = malloc(sizeof(*new_expr));
+        new_expr->as.binary_op.x = accum;
+        new_expr->as.binary_op.y = y;
+        if (op == TOK_EQUAL_EQUAL)
+            new_expr->tag = EXPR_EQUAL;
+        else if (op == TOK_NOT_EQUAL)
+            new_expr->tag = EXPR_NOT_EQUAL;
+
+        accum = new_expr;
+    }
+
+    return accum;
 }
 
+// :IGNORED
 // ANDExpression <- EqualityExpression (AND EqualityExpression)*
 
+// :IGNORED
 // ExclusiveORExpression <- ANDExpression (HAT ANDExpression)*
 
+// :IGNORED
 // InclusiveORExpression <- ExclusiveORExpression (OR ExclusiveORExpression)*
 
 // LogicalANDExpression
@@ -1206,6 +1247,13 @@ void test_parse_exprs()
 
     printf("\n");
     lxr = lexer_init("  100 >= 0 ");
+    if ((expr = parse_expression(&lxr)))
+        display_expr(stdout, expr);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  100 != 0 ");
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
