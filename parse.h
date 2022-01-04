@@ -875,7 +875,7 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 struct Expr *parse_cast_expression(struct Lexer *lxr)
 {
     {
-        struct Lexer saved_lxr = *lxr;
+        struct Lexer saved_lxr = *lxr; // HACK: is there a better way?
         {
             struct Type *type;
             struct Expr *expr;
