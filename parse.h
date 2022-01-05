@@ -814,6 +814,15 @@ struct ArgList *parse_argument_expression_list(struct Lexer *lxr)
 //     / MINUS # :IGNORED
 //     / TILDA # :IGNORED
 //     / BANG
+//
+// TODO: remove backtracking by rewriting grammar slightly:
+//   unary_expression -> 'sizeof' unary_expression'
+//                     | 'constant'
+//                     | '(' expression ')'
+//  unary_expression' -> 'sizeof' unary_expression'
+//                     | 'constant'
+//                     | '(' expression ')'
+//                     | '(' type_name ')'
 struct Expr *parse_unary_expression(struct Lexer *lxr)
 {
     struct Expr *expr;
@@ -861,7 +870,7 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
     {
         struct Expr *operand;
         {
-            struct Lexer saved_lxr = *lxr; // TODO: find a fix for this problem
+            struct Lexer saved_lxr = *lxr; // HACK: save lexer state
             if ((operand = parse_unary_expression(lxr)))
             {
                 expr = malloc(sizeof(*expr));
@@ -892,6 +901,16 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 // CastExpression
 //      <- (LPAR TypeName RPAR CastExpression)
 //       / UnaryExpression
+//
+// TODO: remove backtracking by rewriting grammar slightly:
+//    cast_expression -> '(' type_name ')' cast_expression
+//                     | 'sizeof' unary_expression'
+//                     | 'constant'
+//                     | '(' expression ')'
+//  unary_expression' -> 'sizeof' unary_expression'
+//                     | 'constant'
+//                     | '(' expression ')'
+//                     | '(' type_name ')'
 struct Expr *parse_cast_expression(struct Lexer *lxr)
 {
     {
@@ -1140,6 +1159,20 @@ struct Expr *parse_conditional_expression(struct Lexer *lxr)
 //     / ANDEQU   # :IGNORED
 //     / HATEQU   # :IGNORED
 //     / OREQU    # :IGNORED
+//
+// TODO: remove backtracking by left factoring grammar:
+//  assignment_expression -> 'sizeof' unary_expression' '=' assignment_expression
+//                         | 'constant' '=' assignment_expression
+//                         | '(' expression ')' '=' assignment_expression
+//                         | conditional_expression
+// conditional_expression -> '(' type_name ')' cast_expression
+//                         | 'sizeof' unary_expression'
+//                         | 'constant'
+//                         | '(' expression ')'
+//      unary_expression' -> 'sizeof' unary_expression'
+//                         | 'constant'
+//                         | '(' expression ')'
+//                         | '(' type_name ')'
 struct Expr *parse_assignment_expression(struct Lexer *lxr)
 {
     struct Expr *unary, *assignment;
