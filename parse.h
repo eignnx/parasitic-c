@@ -860,15 +860,17 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
     if (lexer_accept(lxr, TOK_SIZEOF))
     {
         struct Expr *operand;
-        struct Lexer saved_lxr = *lxr; // TODO: find a fix for this problem
-        if ((operand = parse_unary_expression(lxr)))
         {
-            expr = malloc(sizeof(*expr));
-            expr->tag = EXPR_SIZEOF_EXPR;
-            expr->as.sizeof_expr.operand = operand;
-            return expr;
+            struct Lexer saved_lxr = *lxr; // TODO: find a fix for this problem
+            if ((operand = parse_unary_expression(lxr)))
+            {
+                expr = malloc(sizeof(*expr));
+                expr->tag = EXPR_SIZEOF_EXPR;
+                expr->as.sizeof_expr.operand = operand;
+                return expr;
+            }
+            *lxr = saved_lxr; // HACK: restore lexer state
         }
-        *lxr = saved_lxr; // HACK: restore lexer state
 
         struct Type *type;
         if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
