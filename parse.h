@@ -1,11 +1,7 @@
-#include <stdio.h>  // fprintf_s, FILE, stdout
-#include <stdlib.h> // atoi, malloc, free
-#include "lex.h"    // lex, lex_all_input
-
-// DEVELOPMENT MACROS, SAFE TO DELETE WHEN BOOTSTRAPPING
-#define unimplemented                                                          \
-    printf("%s:%d (%s) not yet implemented!\n", __FILE__, __LINE__, __func__); \
-    exit(1)
+#include <stdio.h>     // fprintf_s, FILE, stdout
+#include <stdlib.h>    // atoi, malloc, free
+#include "lex.h"       // lex, lex_all_input
+#include "std.parac.h" // unimplemented
 
 // FORWARD DECLARATIONS
 struct Type *parse_type_specifier(struct Lexer *);

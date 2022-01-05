@@ -1,8 +1,9 @@
-#include <stdio.h>   // printf, perror, fprintf_s, FILE
-#include <stdlib.h>  // exit
-#include <ctype.h>   // isalpha, isalnum, isspace, isdigit
-#include <string.h>  // strncpy_s
-#include <stdbool.h> // true, false, bool
+#include <stdio.h>     // printf, perror, fprintf_s, FILE
+#include <stdlib.h>    // exit
+#include <ctype.h>     // isalpha, isalnum, isspace, isdigit
+#include <string.h>    // strncpy_s
+#include <stdbool.h>   // true, false, bool
+#include "std.parac.h" // cstr_arr
 
 enum TokTag
 {
@@ -67,7 +68,7 @@ enum TokTag
     TOK_END_OF_INPUT, // $
 };
 
-char *tok_tag_names[] = {
+cstr_arr tok_tag_names = {
     // SYMBOLS
     "TOK_OPEN_PAREN",
     "TOK_CLOSE_PAREN",
