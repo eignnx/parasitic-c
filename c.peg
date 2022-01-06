@@ -182,13 +182,8 @@ StructOrUnion <- STRUCT / UNION
 StructDeclaration <- ( SpecifierQualifierList StructDeclaratorList? )? SEMI
 
 SpecifierQualifierList
-   <- ( TypeQualifier*
-        TypedefName
-        TypeQualifier*
-      )
-    / ( TypeSpecifier
-      / TypeQualifier
-      )+
+   <- ( TypeQualifier* TypedefName TypeQualifier*)
+    / (TypeSpecifier / TypeQualifier)+
 
 StructDeclaratorList <- StructDeclarator (COMMA StructDeclarator)*
 
