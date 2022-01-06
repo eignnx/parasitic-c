@@ -1,9 +1,9 @@
-#include <stdio.h>     // printf, perror, fprintf_s, FILE
-#include <stdlib.h>    // exit
-#include <ctype.h>     // isalpha, isalnum, isspace, isdigit
-#include <string.h>    // strncpy_s
-#include <stdbool.h>   // true, false, bool
-#include "std.parac.h" // cstr_arr
+#include <stdio.h>   // printf, perror, fprintf_s, FILE
+#include <stdlib.h>  // exit
+#include <ctype.h>   // isalpha, isalnum, isspace, isdigit
+#include <string.h>  // strncpy_s
+#include <stdbool.h> // true, false, bool
+#include "cheats.h"  // cstr_arr
 
 enum TokTag
 {

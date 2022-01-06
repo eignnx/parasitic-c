@@ -1,7 +1,7 @@
-#include <stdio.h>     // fprintf_s, FILE, stdout
-#include <stdlib.h>    // atoi, malloc, free
-#include "lex.h"       // lex, lex_all_input
-#include "std.parac.h" // unimplemented
+#include <stdio.h>  // fprintf_s, FILE, stdout
+#include <stdlib.h> // atoi, malloc, free
+#include "lex.h"    // lex, lex_all_input
+#include "cheats.h" // unimplemented
 
 // FORWARD DECLARATIONS
 struct Type *parse_type_specifier(struct Lexer *);
