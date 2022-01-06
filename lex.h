@@ -51,7 +51,6 @@ enum TokTag
     TOK_IF,
     TOK_ELSE,
     TOK_WHILE,
-    TOK_FOR,
     TOK_BREAK,
     TOK_CONTINUE,
     TOK_TRUE,
@@ -113,7 +112,6 @@ cstr_arr tok_tag_names = {
     "TOK_IF",
     "TOK_ELSE",
     "TOK_WHILE",
-    "TOK_FOR",
     "TOK_BREAK",
     "TOK_CONTINUE",
     "TOK_TRUE",
@@ -511,9 +509,6 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_keyword(input, "while", TOK_WHILE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "for", TOK_FOR, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_keyword(input, "break", TOK_BREAK, out_tok_typ, old_input, new_input))
