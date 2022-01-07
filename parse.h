@@ -1657,6 +1657,7 @@ void test_stmt(char *input)
 void test_parse_stmts()
 {
     printf("\n\n");
+    test_stmt("{}");
     test_stmt("  { int x = 1; launch_missiles(x, 2, 3); }  ");
     test_stmt("  break;  ");
     test_stmt("  continue;  ");
