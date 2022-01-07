@@ -45,6 +45,7 @@ void list_push(struct List *list, void *data)
 struct Item *parse_compiler_directive(struct Lexer *);
 bool display_struct_members(FILE *, struct List *);
 bool display_enum_members(FILE *, struct List *);
+struct Stmt *parse_var_decl(struct Lexer *);
 struct Type *parse_direct_type(struct Lexer *);
 struct Type *parse_type(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
@@ -479,13 +480,41 @@ struct Type *parse_direct_type(struct Lexer *lxr)
 
 struct Stmt
 {
-    int placeholder;
+    enum
+    {
+        STMT_VAR_DECL,
+    } tag;
+
+    union
+    {
+        struct
+        {
+            struct Type *type;
+            char *name;
+            struct Expr *initializer;
+        } var_decl;
+
+    } as;
 };
 
 bool display_stmt(FILE *out, struct Stmt *stmt)
 {
-    // todo;
-    return false;
+    switch (stmt->tag)
+    {
+    case STMT_VAR_DECL:
+        if (stmt->as.var_decl.initializer)
+        {
+            return display_type(out, stmt->as.var_decl.type) &&
+                   fprintf_s(out, " %s = ", stmt->as.var_decl.name) >= 0 &&
+                   display_expr(out, stmt->as.var_decl.initializer) &&
+                   fprintf_s(out, ";\n") >= 0;
+        }
+        else
+        {
+            return display_type(out, stmt->as.var_decl.type) &&
+                   fprintf_s(out, " %s;", stmt->as.var_decl.name) >= 0;
+        }
+    }
 }
 
 // stmt ::= stmt_block
@@ -497,28 +526,59 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 //        | return_stmt
 //        | var_decl
 //        | expr_stmt
+// stmt_block ::= '{' stmt_list '}'
+// if_stmt ::= 'if' '(' expression ')' stmt ('else' stmt)?
+// while_stmt ::= 'while' '(' expression ')' stmt
+// switch_stmt ::= 'switch' '(' expression ')' stmt
+// case_stmt ::= 'case' expression ':'
+// default_stmt ::= 'default' ':'
+// jump_stmt ::= ('break' | 'continue') ';'
+// return_stmt ::= 'return' expression? ';'
 struct Stmt *parse_stmt(struct Lexer *lxr)
 {
-    // todo;
+    struct Stmt *stmt;
+
+    if ((stmt = parse_var_decl(lxr)))
+        return stmt;
+
     return NULL;
 }
 
-// stmt_block ::= '{' stmt* '}'
-
-// if_stmt ::= 'if' '(' expression ')' stmt ('else' stmt)?
-
-// while_stmt ::= 'while' '(' expression ')' stmt
-
-// switch_stmt ::= 'switch' '(' expression ')' stmt
-
-// case_stmt ::= 'case' expression ':'
-// default_stmt ::= 'default' ':'
-
-// jump_stmt ::= ('break' | 'continue') ';'
-
-// return_stmt ::= 'return' expression? ';'
+// stmt_list ::= stmt*
+struct List parse_stmt_list(struct Lexer *lxr)
+{
+    todo;
+}
 
 // var_decl ::= type 'ident' ('=' expression)? ';'
+struct Stmt *parse_var_decl(struct Lexer *lxr)
+{
+    struct Type *type;
+
+    if (!(type = parse_type(lxr)))
+        return NULL;
+
+    lexer_expect(lxr, TOK_IDENT);
+    char *name = lxr->token;
+
+    struct Expr *initializer = NULL;
+
+    if (lexer_accept(lxr, TOK_EQUAL))
+    {
+        if (!(initializer = parse_expression(lxr)))
+            return NULL;
+    }
+
+    lexer_expect(lxr, TOK_SEMI);
+
+    struct Stmt *stmt = malloc(sizeof(*stmt));
+    stmt->tag = STMT_VAR_DECL;
+    stmt->as.var_decl.type = type;
+    stmt->as.var_decl.name = name;
+    stmt->as.var_decl.initializer = initializer;
+
+    return stmt;
+}
 
 // expr_stmt ::= expression ';'
 
