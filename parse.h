@@ -679,9 +679,9 @@ bool display_stmt_list(FILE *out, struct List *list)
 // stmt_block ::= '{' stmt_list '}'
 // if_stmt ::= 'if' '(' expression ')' stmt ('else' stmt)?
 // while_stmt ::= 'while' '(' expression ')' stmt
-// switch_stmt ::= 'switch' '(' expression ')' stmt
-// case_stmt ::= 'case' expression ':'
-// default_stmt ::= 'default' ':'
+// switch_stmt ::= 'switch' '(' expression ')' '{' switch_arms '}'
+// switch_arms ::= switch_arm*
+// switch_arm ::= ( 'case' expression | 'default' ) ':' stmt*
 // jump_stmt ::= ('break' | 'continue') ';'
 // return_stmt ::= 'return' expression? ';'
 // expr_stmt ::= expression ';'
