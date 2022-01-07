@@ -16,6 +16,7 @@ enum TokTag
     TOK_CLOSE_BRACK,
     TOK_POUND,
     TOK_SEMI,
+    TOK_COLON,
     TOK_EQUAL,
     TOK_STAR,
     TOK_AMPERSAND,
@@ -52,6 +53,9 @@ enum TokTag
     TOK_IF,
     TOK_ELSE,
     TOK_WHILE,
+    TOK_SWITCH,
+    TOK_CASE,
+    TOK_DEFAULT,
     TOK_BREAK,
     TOK_CONTINUE,
     TOK_TRUE,
@@ -78,6 +82,7 @@ cstr_arr tok_tag_names = {
     "TOK_CLOSE_BRACK",
     "TOK_POUND",
     "TOK_SEMI",
+    "TOK_COLON",
     "TOK_EQUAL",
     "TOK_STAR",
     "TOK_AMPERSAND",
@@ -114,6 +119,9 @@ cstr_arr tok_tag_names = {
     "TOK_IF",
     "TOK_ELSE",
     "TOK_WHILE",
+    "TOK_SWITCH",
+    "TOK_CASE",
+    "TOK_DEFAULT",
     "TOK_BREAK",
     "TOK_CONTINUE",
     "TOK_TRUE",
@@ -432,6 +440,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
     if (expect_symbol(input, ";", TOK_SEMI, out_tok_typ, new_input))
         return true;
 
+    if (expect_symbol(input, ":", TOK_COLON, out_tok_typ, new_input))
+        return true;
+
     if (expect_symbol(input, "==", TOK_EQUAL_EQUAL, out_tok_typ, new_input))
         return true;
 
@@ -514,6 +525,15 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_keyword(input, "while", TOK_WHILE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "switch", TOK_SWITCH, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "case", TOK_CASE, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "default", TOK_DEFAULT, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_keyword(input, "break", TOK_BREAK, out_tok_typ, old_input, new_input))

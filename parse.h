@@ -46,6 +46,7 @@ struct Item *parse_compiler_directive(struct Lexer *);
 bool display_struct_members(FILE *, struct List *);
 bool display_enum_members(FILE *, struct List *);
 struct Stmt *parse_var_decl(struct Lexer *);
+struct List parse_switch_arms(struct Lexer *);
 struct List parse_stmt_list(struct Lexer *);
 bool display_stmt_list(FILE *, struct List *);
 struct Type *parse_direct_type(struct Lexer *);
@@ -487,6 +488,7 @@ struct Stmt
         STMT_BLOCK,
         STMT_IF,
         STMT_WHILE,
+        STMT_SWITCH,
         STMT_BREAK,
         STMT_CONTINUE,
         STMT_RETURN,
@@ -508,6 +510,12 @@ struct Stmt
             struct Expr *cond;
             struct Stmt *body;
         } while_stmt;
+
+        struct
+        {
+            struct Expr *scrutinee;
+            struct List switch_arms; // A `List` of `SwitchArm*`s.
+        } switch_stmt;
 
         struct
         {
@@ -533,6 +541,44 @@ struct Stmt
 
     } as;
 };
+
+struct SwitchArm
+{
+    struct Expr *test; // Nullable. NULL indicates `default` arm.
+    struct List stmts; // A `List` of `Stmts*`s.
+};
+
+bool display_switch_arms(FILE *out, struct List *arms)
+{
+    struct ListNode *node = arms->first;
+
+    while (node)
+    {
+        struct SwitchArm *arm = (struct SwitchArm *)node->data;
+
+        // If `test` is NULL, this is a `default` arm.
+        if (arm->test == NULL)
+        {
+            bool result = fprintf_s(out, "default:\n") >= 0 &&
+                          display_stmt_list(out, &arm->stmts);
+            if (!result)
+                return false;
+        }
+        else
+        {
+            bool result = fprintf_s(out, "case ") >= 0 &&
+                          display_expr(out, arm->test) &&
+                          fprintf_s(out, ":\n") >= 0 &&
+                          display_stmt_list(out, &arm->stmts);
+            if (!result)
+                return false;
+        }
+
+        node = node->next;
+    }
+
+    return true;
+}
 
 bool display_stmt(FILE *out, struct Stmt *stmt)
 {
@@ -564,6 +610,12 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
                display_expr(out, stmt->as.while_stmt.cond) &&
                fprintf_s(out, ")\n") >= 0 &&
                display_stmt(out, stmt->as.while_stmt.body);
+    case STMT_SWITCH:
+        return fprintf_s(out, "switch (") >= 0 &&
+               display_expr(out, stmt->as.switch_stmt.scrutinee) &&
+               fprintf_s(out, ")\n{\n") >= 0 &&
+               display_switch_arms(out, &stmt->as.switch_stmt.switch_arms) &&
+               fprintf_s(out, "}\n") >= 0;
     case STMT_BREAK:
         return fprintf_s(out, "break;\n") >= 0;
     case STMT_CONTINUE:
@@ -620,7 +672,6 @@ bool display_stmt_list(FILE *out, struct List *list)
 //        | if_stmt
 //        | while_stmt
 //        | switch_stmt
-//        | labelled_stmt
 //        | jump_stmt
 //        | return_stmt
 //        | var_decl
@@ -633,6 +684,7 @@ bool display_stmt_list(FILE *out, struct List *list)
 // default_stmt ::= 'default' ':'
 // jump_stmt ::= ('break' | 'continue') ';'
 // return_stmt ::= 'return' expression? ';'
+// expr_stmt ::= expression ';'
 struct Stmt *parse_stmt(struct Lexer *lxr)
 {
     struct Stmt *stmt;
@@ -687,9 +739,29 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
         return stmt;
     }
 
+    // SWITCH STMT
+    if (lexer_accept(lxr, TOK_SWITCH))
+    {
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct Expr *scrutinee = parse_expression(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        struct List arms = parse_switch_arms(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_SWITCH;
+        stmt->as.switch_stmt.scrutinee = scrutinee;
+        stmt->as.switch_stmt.switch_arms = arms;
+
+        return stmt;
+    }
+
     // BREAK STMT
     if (lexer_accept(lxr, TOK_BREAK))
     {
+        lexer_expect(lxr, TOK_SEMI);
+
         stmt = malloc(sizeof(*stmt));
         stmt->tag = STMT_BREAK;
 
@@ -699,6 +771,8 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
     // CONTINUE STMT
     if (lexer_accept(lxr, TOK_CONTINUE))
     {
+        lexer_expect(lxr, TOK_SEMI);
+
         stmt = malloc(sizeof(*stmt));
         stmt->tag = STMT_CONTINUE;
 
@@ -781,7 +855,47 @@ struct Stmt *parse_var_decl(struct Lexer *lxr)
     return stmt;
 }
 
-// expr_stmt ::= expression ';'
+struct List parse_switch_arms(struct Lexer *lxr)
+{
+    struct List arms = list_init();
+
+    while (lexer_accept(lxr, TOK_CASE) || lexer_accept(lxr, TOK_DEFAULT))
+    {
+        struct SwitchArm *arm;
+
+        if (lxr->tok_tag == TOK_CASE)
+        {
+            struct Expr *test;
+
+            if (!(test = parse_expression(lxr)))
+                todo; // Report the error.
+
+            lexer_expect(lxr, TOK_COLON);
+
+            struct List stmts = parse_stmt_list(lxr);
+
+            arm = malloc(sizeof(*arm));
+            arm->test = test;
+            arm->stmts = stmts;
+
+            list_push(&arms, (void *)arm);
+        }
+        else if (lxr->tok_tag == TOK_DEFAULT)
+        {
+            lexer_expect(lxr, TOK_COLON);
+
+            struct List stmts = parse_stmt_list(lxr);
+
+            arm = malloc(sizeof(*arm));
+            arm->test = NULL; // NULL indicates this is a `default` arm.
+            arm->stmts = stmts;
+
+            list_push(&arms, (void *)arm);
+        }
+    }
+
+    return arms;
+}
 
 // #-------------------------------------------------------------------------
 // #  A.2.1  Expressions
@@ -1666,6 +1780,7 @@ void test_expr(char *input)
 
 void test_parse_exprs()
 {
+    printf("\n\n----------------------TEST EXPRS-----------------------------");
     test_expr("  -531  ");
     test_expr("  '\\n'   ");
     test_expr("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
@@ -1702,6 +1817,7 @@ void test_type(char *input)
 
 void test_parse_types()
 {
+    printf("\n\n----------------------TEST TYPES-----------------------------");
     test_type("  int  ");
     test_type("  bool  ");
     test_type("  char  ");
@@ -1723,6 +1839,7 @@ void test_stmt(char *input)
     struct Lexer lxr;
     struct Stmt *stmt;
 
+    printf("\n");
     lxr = lexer_init(input);
     if ((stmt = parse_stmt(&lxr)))
         display_stmt(stdout, stmt);
@@ -1732,12 +1849,14 @@ void test_stmt(char *input)
 
 void test_parse_stmts()
 {
-    printf("\n\n");
+    printf("\n\n----------------------TEST STMTS-----------------------------");
     test_stmt("  {}  ");
     test_stmt("  { int x = 1; launch_missiles(x, 2, 3); }  ");
     test_stmt("  if (123 < 456) { return; }  ");
     test_stmt("  if (need_else_here) { return 100; } else { return -1; }  ");
     test_stmt("  while (i < len) { iterate(); }  ");
+    test_stmt("  switch (123) {}  ");
+    test_stmt("  switch (x) { case 1: return 1; case 2: f(); break; default: return 0;}  ");
     test_stmt("  break;  ");
     test_stmt("  continue;  ");
     test_stmt("  return 123;  ");
@@ -1762,6 +1881,7 @@ void test_item(char *input)
 
 void test_parse_items()
 {
+    printf("\n\n----------------------TEST ITEMS-----------------------------");
     test_item("  #include <stdio.h>  ");
     test_item("  #include \"my_file.h\"  ");
 }

@@ -47,7 +47,6 @@ stmt ::= stmt_block
        | if_stmt
        | while_stmt
        | switch_stmt
-       | labelled_stmt
        | jump_stmt
        | return_stmt
        | var_decl
