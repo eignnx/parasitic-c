@@ -10,9 +10,12 @@
 
 typedef char *cstr_arr[];
 
-#define todo                                                      \
-    fprintf(stderr, "\n%s:%d: work needed in function `%s`!\n\n", \
-            __FILE__, __LINE__, __func__);                        \
-    exit(1)
+#define todo                                                          \
+    do                                                                \
+    {                                                                 \
+        fprintf(stderr, "\n%s:%d: work needed in function `%s`!\n\n", \
+                __FILE__, __LINE__, __func__);                        \
+        exit(1);                                                      \
+    } while (false)
 
 #endif // STD_PARAC_H

@@ -4,7 +4,47 @@
 #include "cheats.h" // todo
 
 // FORWARD DECLARATIONS
+struct List
+{
+    struct ListNode *first;
+    struct ListNode *last;
+};
+
+struct ListNode
+{
+    void *data;
+    struct ListNode *next;
+};
+
+struct List list_init()
+{
+    struct List list;
+    list.first = NULL;
+    list.last = NULL;
+    return list;
+}
+
+void list_push(struct List *list, void *data)
+{
+    struct ListNode *new_node = malloc(sizeof(*new_node));
+    new_node->data = data;
+    new_node->next = NULL;
+
+    if (list->first && list->last)
+    {
+        list->last->next = new_node;
+        list->last = new_node;
+    }
+    else
+    {
+        list->first = new_node;
+        list->last = new_node;
+    }
+}
+
+bool display_struct_members(FILE *, struct List *);
 struct Type *parse_direct_type(struct Lexer *);
+struct Type *parse_type(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
 struct Expr *parse_expression(struct Lexer *);
 struct Expr *parse_cast_expression(struct Lexer *);
@@ -79,9 +119,40 @@ bool display_decl(FILE *out, struct Item *decl)
 
 // initializer_list ::= '{' '}' | '{' expression (',' expression)* ','? '}'
 
-// anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member+ '}'
+// anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
+struct Type *parse_anon_struct_or_union(struct Lexer *lxr)
+{
+    todo;
+}
 
+struct StructMember
+{
+    struct Type *type;
+    char *field;
+};
+
+// struct_member_list ::= struct_member*
 // struct_member ::= type 'ident' ';'
+struct List parse_struct_member_list(struct Lexer *lxr)
+{
+    struct Type *type;
+    struct List list = list_init();
+
+    while ((type = parse_type(lxr)))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        char *field = lxr->token;
+        lexer_expect(lxr, TOK_SEMI);
+
+        struct StructMember *sm = malloc(sizeof(*sm));
+        sm->type = type;
+        sm->field = field;
+
+        list_push(&list, (void *)sm);
+    }
+
+    return list;
+}
 
 // anonymous_enum ::= 'enum' '{' enumerator_list '}'
 
@@ -134,6 +205,8 @@ struct Type
         TYPE_PTR,
         TYPE_NAMED_STRUCT_REF,
         TYPE_NAMED_ENUM_REF,
+        TYPE_ANON_STRUCT,
+        TYPE_ANON_UNION,
     } tag;
 
     union
@@ -147,6 +220,11 @@ struct Type
         {
             char *name;
         } named;
+
+        struct
+        {
+            struct List struct_members; // A `List` of `StructMember`s.
+        } anon_struct_or_union;
     } as;
 };
 
@@ -171,10 +249,39 @@ bool display_type(FILE *out, struct Type *type)
         return fprintf_s(out, "struct %s", type->as.named.name) >= 0;
     case TYPE_NAMED_ENUM_REF:
         return fprintf_s(out, "enum %s", type->as.named.name) >= 0;
+    case TYPE_ANON_STRUCT:
+        return fprintf_s(out, "struct {\n") >= 0 &&
+               display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
+               fprintf_s(out, "}") >= 0;
+    case TYPE_ANON_UNION:
+        return fprintf_s(out, "union {\n") >= 0 &&
+               display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
+               fprintf_s(out, "}") >= 0;
     default:
         perror("Invalid Type tag");
         exit(1);
     }
+}
+
+bool display_struct_members(FILE *out, struct List *list)
+{
+    struct ListNode *node = list->first;
+
+    while (node)
+    {
+        struct StructMember *sm = (struct StructMember *)node->data;
+
+        bool result = fprintf_s(out, "    ") >= 0 &&
+                      display_type(out, sm->type) &&
+                      fprintf_s(out, " %s;\n", sm->field) >= 0;
+
+        if (!(result))
+            return false;
+
+        node = node->next;
+    }
+
+    return true;
 }
 
 // type ::= direct_type '*'*
@@ -253,7 +360,19 @@ struct Type *parse_direct_type(struct Lexer *lxr)
             type->as.named.name = lxr->token;
             return type;
         }
-        todo; // anonymous structs
+
+        // ANON STRUCT
+        if (lexer_expect(lxr, TOK_OPEN_BRACE))
+        {
+            struct List members = parse_struct_member_list(lxr);
+            lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+            type = malloc(sizeof(*type));
+            type->tag = TYPE_ANON_STRUCT;
+            type->as.anon_struct_or_union.struct_members = members;
+
+            return type;
+        }
     }
 
     if (lexer_accept(lxr, TOK_ENUM))
@@ -268,9 +387,18 @@ struct Type *parse_direct_type(struct Lexer *lxr)
         todo; // anonymous enums
     }
 
+    // ANON UNION
     if (lexer_accept(lxr, TOK_UNION))
     {
-        todo;
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        struct List members = parse_struct_member_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+        type = malloc(sizeof(*type));
+        type->tag = TYPE_ANON_UNION;
+        type->as.anon_struct_or_union.struct_members = members;
+
+        return type;
     }
 
     return NULL;
@@ -1390,6 +1518,20 @@ void test_parse_types()
 
     printf("\n");
     lxr = lexer_init("  enum Tag  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  struct { int x; int y; }  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  union { int x; void *y; }  ");
     if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
