@@ -485,6 +485,8 @@ struct Stmt
     enum
     {
         STMT_BLOCK,
+        STMT_IF,
+        STMT_WHILE,
         STMT_BREAK,
         STMT_CONTINUE,
         STMT_RETURN,
@@ -494,6 +496,19 @@ struct Stmt
 
     union
     {
+        struct
+        {
+            struct Expr *cond;
+            struct Stmt *consequent;
+            struct Stmt *alternative; // Nullable ptr.
+        } if_stmt;
+
+        struct
+        {
+            struct Expr *cond;
+            struct Stmt *body;
+        } while_stmt;
+
         struct
         {
             struct List stmts; // A `List` of `Stmt*`s
@@ -527,6 +542,28 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
         return fprintf_s(out, "{\n") >= 0 &&
                display_stmt_list(out, &stmt->as.block.stmts) &&
                fprintf_s(out, "}\n") >= 0;
+    case STMT_IF:
+        if (stmt->as.if_stmt.alternative)
+        {
+            return fprintf_s(out, "if (") >= 0 &&
+                   display_expr(out, stmt->as.if_stmt.cond) &&
+                   fprintf_s(out, ")\n") >= 0 &&
+                   display_stmt(out, stmt->as.if_stmt.consequent) &&
+                   fprintf_s(out, "else\n") >= 0 &&
+                   display_stmt(out, stmt->as.if_stmt.alternative);
+        }
+        else
+        {
+            return fprintf_s(out, "if (") >= 0 &&
+                   display_expr(out, stmt->as.if_stmt.cond) &&
+                   fprintf_s(out, ")\n") >= 0 &&
+                   display_stmt(out, stmt->as.if_stmt.consequent);
+        }
+    case STMT_WHILE:
+        return fprintf_s(out, "while (") >= 0 &&
+               display_expr(out, stmt->as.while_stmt.cond) &&
+               fprintf_s(out, ")\n") >= 0 &&
+               display_stmt(out, stmt->as.while_stmt.body);
     case STMT_BREAK:
         return fprintf_s(out, "break;\n") >= 0;
     case STMT_CONTINUE:
@@ -603,10 +640,49 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
     if (lexer_accept(lxr, TOK_OPEN_BRACE))
     {
         struct List stmts = parse_stmt_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
 
         stmt = malloc(sizeof(*stmt));
         stmt->tag = STMT_BLOCK;
         stmt->as.block.stmts = stmts;
+
+        return stmt;
+    }
+
+    // IF STMT
+    if (lexer_accept(lxr, TOK_IF))
+    {
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct Expr *cond = parse_expression(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        struct Stmt *consequent = parse_stmt(lxr);
+
+        struct Stmt *alternative = NULL;
+        if (lexer_accept(lxr, TOK_ELSE))
+            if (!(alternative = parse_stmt(lxr)))
+                return NULL; // TODO: report error here
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_IF;
+        stmt->as.if_stmt.cond = cond;
+        stmt->as.if_stmt.consequent = consequent;
+        stmt->as.if_stmt.alternative = alternative;
+
+        return stmt;
+    }
+
+    // WHILE STMT
+    if (lexer_accept(lxr, TOK_WHILE))
+    {
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct Expr *cond = parse_expression(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        struct Stmt *body = parse_stmt(lxr);
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_WHILE;
+        stmt->as.while_stmt.cond = cond;
+        stmt->as.while_stmt.body = body;
 
         return stmt;
     }
@@ -1657,8 +1733,11 @@ void test_stmt(char *input)
 void test_parse_stmts()
 {
     printf("\n\n");
-    test_stmt("{}");
+    test_stmt("  {}  ");
     test_stmt("  { int x = 1; launch_missiles(x, 2, 3); }  ");
+    test_stmt("  if (123 < 456) { return; }  ");
+    test_stmt("  if (need_else_here) { return 100; } else { return -1; }  ");
+    test_stmt("  while (i < len) { iterate(); }  ");
     test_stmt("  break;  ");
     test_stmt("  continue;  ");
     test_stmt("  return 123;  ");
