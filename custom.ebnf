@@ -1,0 +1,73 @@
+translation_unit ::= item*
+item ::= function_decl
+       | function_def
+       | constant_decl
+       | named_struct_or_union_decl
+       | named_enum_decl
+       | compiler_directive
+
+function_decl ::= type 'ident' '(' unnamed_parameter_list? ')' ';'
+function_def ::= type 'ident' '(' parameter_list? ')' stmt_block
+
+unnamed_parameter_list ::= type (',' type)* ','?
+parameter_list ::= type 'ident' (',' type 'ident')* ','?
+
+constant_decl ::= type 'ident' '=' ( initializer_list | expression ) ';'
+
+initializer_list ::= '{' '}' | '{' expression (',' expression)* ','? '}'
+
+type ::= direct_type '*'*
+
+direct_type ::= 'void'
+              | 'int'
+              | 'char'
+              | 'bool'
+              | 'cstr_arr' /* Temporary! */
+              | named_struct_or_union_ref
+              | anonymous_struct_or_union
+              | named_enum_ref
+              | anonymous_enum
+
+anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member+ '}'
+struct_member ::= type 'ident' ';'
+
+anonymous_enum ::= 'enum' '{' enumerator_list '}'
+enumerator_list ::= 'ident' (',' 'ident')* ','?
+
+named_struct_or_union_ref ::= ('struct' | 'union') 'ident'
+named_struct_or_union_decl ::= named_struct_or_union_ref '{' struct_member+ '}' ';'
+
+named_enum_ref ::= 'enum' 'ident'
+named_enum_decl ::= named_enum_ref '{' enumerator_list '}' ';'
+
+compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
+
+
+stmt ::= stmt_block
+       | if_stmt
+       | while_stmt
+       | switch_stmt
+       | labelled_stmt
+       | jump_stmt
+       | return_stmt
+       | var_decl
+       | expr_stmt
+
+stmt_block ::= '{' stmt* '}'
+
+if_stmt ::= 'if' '(' expression ')' stmt ('else' stmt)?
+
+while_stmt ::= 'while' '(' expression ')' stmt
+
+switch_stmt ::= 'switch' '(' expression ')' stmt
+
+case_stmt ::= 'case' expression ':'
+default_stmt ::= 'default' ':'
+
+jump_stmt ::= ('break' | 'continue') ';'
+
+return_stmt ::= 'return' expression? ';'
+
+var_decl ::= type 'ident' ('=' expression)? ';'
+
+expr_stmt ::= expression ';'

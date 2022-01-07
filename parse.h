@@ -4,7 +4,7 @@
 #include "cheats.h" // unimplemented
 
 // FORWARD DECLARATIONS
-struct Type *parse_type_specifier(struct Lexer *);
+struct Type *parse_direct_type(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
 struct Expr *parse_expression(struct Lexer *);
 struct Expr *parse_cast_expression(struct Lexer *);
@@ -14,26 +14,14 @@ struct ArgList *parse_argument_expression_list(struct Lexer *);
 bool display_arglist(FILE *, struct ArgList *);
 
 // #-------------------------------------------------------------------------
-// #  A.2.4  External definitions
+// #  Items
 // #-------------------------------------------------------------------------
 
-// TranslationUnit <- Spacing ( ExternalDeclaration / SEMI ) * EOT
-
-// ExternalDeclaration <- FunctionDefinition / Declaration
-
-// FunctionDefinition <- DeclarationSpecifiers Declarator DeclarationList? CompoundStatement
-
-// DeclarationList <- Declaration+
-
-// #-------------------------------------------------------------------------
-// #  A.2.2  Declarations
-// #-------------------------------------------------------------------------
-
-struct Decl
+struct Item
 {
     enum
     {
-        DECL_POUND_INCLUDE,
+        ITEM_POUND_INCLUDE,
     } tag;
 
     union
@@ -51,11 +39,11 @@ struct Decl
     } as;
 };
 
-bool display_decl(FILE *out, struct Decl *decl)
+bool display_decl(FILE *out, struct Item *decl)
 {
     switch (decl->tag)
     {
-    case DECL_POUND_INCLUDE:
+    case ITEM_POUND_INCLUDE:
         if (decl->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
             return fprintf_s(out, "#include <%s>", decl->as.pound_include.filename) >= 0;
@@ -70,28 +58,45 @@ bool display_decl(FILE *out, struct Decl *decl)
     }
 }
 
-// Declaration <- DeclarationSpecifiers InitDeclaratorList? SEMI
+// translation_unit ::= item*
 
-// DeclarationSpecifiers
-//    <- (( StorageClassSpecifier
-//        / TypeQualifier
-//        / FunctionSpecifier
-//        )*
-//        TypedefName
-//        ( StorageClassSpecifier
-//        / TypeQualifier
-//        / FunctionSpecifier
-//        )*
-//       )
-//     / ( StorageClassSpecifier
-//       / TypeSpecifier
-//       / TypeQualifier
-//       / FunctionSpecifier
-//       )+
+// item ::= function_decl
+//        | function_def
+//        | constant_decl
+//        | named_struct_or_union_decl
+//        | named_enum_decl
+//        | compiler_directive
 
-// DeclarationPoundInclude       # :NEW
-//      <- POUND 'include' (angle_bracket_string / double_quoted_string)
-struct Decl *parse_decl_pound_include(struct Lexer *lxr)
+// function_decl ::= type 'ident' '(' unnamed_parameter_list? ')' ';'
+
+// function_def ::= type 'ident' '(' parameter_list? ')' stmt_block
+
+// unnamed_parameter_list ::= type (',' type)* ','?
+
+// parameter_list ::= type 'ident' (',' type 'ident')* ','?
+
+// constant_decl ::= type 'ident' '=' ( initializer_list | expression ) ';'
+
+// initializer_list ::= '{' '}' | '{' expression (',' expression)* ','? '}'
+
+// anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member+ '}'
+
+// struct_member ::= type 'ident' ';'
+
+// anonymous_enum ::= 'enum' '{' enumerator_list '}'
+
+// enumerator_list ::= 'ident' (',' 'ident')* ','?
+
+// named_struct_or_union_ref ::= ('struct' | 'union') 'ident'
+
+// named_struct_or_union_decl ::= named_struct_or_union_ref '{' struct_member+ '}' ';'
+
+// named_enum_ref ::= 'enum' 'ident'
+
+// named_enum_decl ::= named_enum_ref '{' enumerator_list '}' ';'
+
+// compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
+struct Item *parse_compiler_directive(struct Lexer *lxr)
 {
     if (!lexer_accept(lxr, TOK_POUND))
         return NULL;
@@ -102,8 +107,8 @@ struct Decl *parse_decl_pound_include(struct Lexer *lxr)
     if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
         return NULL;
 
-    struct Decl *decl = malloc(sizeof(*decl));
-    decl->tag = DECL_POUND_INCLUDE;
+    struct Item *decl = malloc(sizeof(*decl));
+    decl->tag = ITEM_POUND_INCLUDE;
     decl->as.pound_include.filename = lxr->token;
 
     if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
@@ -114,17 +119,9 @@ struct Decl *parse_decl_pound_include(struct Lexer *lxr)
     return decl;
 }
 
-// InitDeclaratorList <- InitDeclarator (COMMA InitDeclarator)*
-
-// InitDeclarator <- Declarator (EQU Initializer)?
-
-// StorageClassSpecifier
-//    <- TYPEDEF
-//     / EXTERN
-//     / STATIC
-//     / AUTO
-//     / REGISTER
-//     / ATTRIBUTE LPAR LPAR (!RPAR .)* RPAR RPAR
+// #-------------------------------------------------------------------------
+// #  Types
+// #-------------------------------------------------------------------------
 
 struct Type
 {
@@ -135,58 +132,81 @@ struct Type
         TYPE_BOOL,
         TYPE_CHAR,
         TYPE_VOID,
+        TYPE_CSTR_ARR,
 
         // Compound types
-        // TYPE_PTR,
-        // TYPE_ARRAY,
+        TYPE_PTR,
         // TYPE_STRUCT,
         // TYPE_ENUM,
         // TYPE_UNION,
     } tag;
 
-    // union
-    // {
-    // } as;
+    union
+    {
+        struct
+        {
+            struct Type *child;
+        } ptr;
+    } as;
 };
 
-int display_type(FILE *out, struct Type *type)
+bool display_type(FILE *out, struct Type *type)
 {
     switch (type->tag)
     {
     case TYPE_INT:
-        return fprintf_s(out, "int");
+        return fprintf_s(out, "int") >= 0;
     case TYPE_BOOL:
-        return fprintf_s(out, "bool");
+        return fprintf_s(out, "bool") >= 0;
     case TYPE_CHAR:
-        return fprintf_s(out, "char");
+        return fprintf_s(out, "char") >= 0;
     case TYPE_VOID:
-        return fprintf_s(out, "void");
+        return fprintf_s(out, "void") >= 0;
+    case TYPE_CSTR_ARR:
+        return fprintf_s(out, "cstr_arr") >= 0;
+    case TYPE_PTR:
+        return display_type(out, type->as.ptr.child) &&
+               fprintf_s(out, "*") >= 0;
     default:
         perror("Invalid Type tag");
         exit(1);
     }
 }
 
-// TypeSpecifier
-//    <- VOID
-//     / CHAR
-//     / SHORT # :IGNORED
-//     / INT
-//     / LONG # :IGNORED
-//     / FLOAT # :IGNORED
-//     / DOUBLE # :IGNORED
-//     / SIGNED # :IGNORED
-//     / UNSIGNED # :IGNORED
-//     / BOOL
-//     / COMPLEX # :IGNORED
-//     / StructOrUnionSpecifier # :TODO
-//     / EnumSpecifier # :TODO
-struct Type *parse_type_specifier(struct Lexer *lxr)
+// type ::= direct_type '*'*
+struct Type *parse_type(struct Lexer *lxr)
+{
+    struct Type *type;
+
+    if (!(type = parse_direct_type(lxr)))
+        return NULL;
+
+    while (lexer_accept(lxr, TOK_STAR))
+    {
+        struct Type *new_type = malloc(sizeof(*new_type));
+        new_type->tag = TYPE_PTR;
+        new_type->as.ptr.child = type;
+        type = new_type;
+    }
+    return type;
+}
+
+// direct_type ::= 'void'
+//               | 'int'
+//               | 'char'
+//               | 'bool'
+//               | 'cstr_arr' /* Temporary! */ TODO: impl
+//               | named_struct_or_union_ref
+//               | anonymous_struct_or_union
+//               | named_enum_ref
+//               | anonymous_enum
+struct Type *parse_direct_type(struct Lexer *lxr)
 {
     if (!(lexer_accept(lxr, TOK_VOID) ||
           lexer_accept(lxr, TOK_CHAR) ||
           lexer_accept(lxr, TOK_INT) ||
-          lexer_accept(lxr, TOK_BOOL)))
+          lexer_accept(lxr, TOK_BOOL) ||
+          lexer_accept(lxr, TOK_CSTR_ARR)))
         return NULL;
 
     struct Type *type = malloc(sizeof(*type));
@@ -205,6 +225,9 @@ struct Type *parse_type_specifier(struct Lexer *lxr)
     case TOK_BOOL:
         type->tag = TYPE_BOOL;
         break;
+    case TOK_CSTR_ARR:
+        type->tag = TYPE_CSTR_ARR;
+        break;
 
     default:
         puts("unknown type token!\n");
@@ -213,116 +236,6 @@ struct Type *parse_type_specifier(struct Lexer *lxr)
 
     return type;
 }
-
-// StructOrUnionSpecifier
-//    <- StructOrUnion
-//       ( Identifier? LWING StructDeclaration* RWING
-//       / Identifier
-//       )
-
-// StructOrUnion <- STRUCT / UNION
-
-// StructDeclaration <- ( SpecifierQualifierList StructDeclaratorList? )? SEMI
-
-// SpecifierQualifierList
-//    <- ( TypeQualifier*
-//         TypedefName
-//         TypeQualifier*
-//       )
-//     / ( TypeSpecifier
-//       / TypeQualifier
-//       )+
-struct Type *parse_specifier_qualifier_list(struct Lexer *lxr)
-{
-    // TODO: finish impl
-    return parse_type_specifier(lxr);
-}
-
-// StructDeclaratorList <- StructDeclarator (COMMA StructDeclarator)*
-
-// StructDeclarator
-//    <- Declarator? COLON ConstantExpression
-//     / Declarator
-
-// EnumSpecifier
-//     <- ENUM
-//       ( Identifier? LWING EnumeratorList COMMA? RWING
-//       / Identifier
-//       )
-
-// EnumeratorList <- Enumerator (COMMA Enumerator)*
-
-// Enumerator <- EnumerationConstant (EQU ConstantExpression)?
-
-// TypeQualifier
-//    <- CONST
-//     / RESTRICT
-//     / VOLATILE
-//     / DECLSPEC LPAR Identifier RPAR
-
-// FunctionSpecifier <- INLINE / STDCALL
-
-// Declarator <- Pointer? DirectDeclarator
-
-// DirectDeclarator
-//    <- ( Identifier
-//       / LPAR Declarator RPAR
-//       )
-//       ( LBRK TypeQualifier* AssignmentExpression? RBRK
-//       / LBRK STATIC TypeQualifier* AssignmentExpression RBRK
-//       / LBRK TypeQualifier+ STATIC AssignmentExpression RBRK
-//       / LBRK TypeQualifier* STAR RBRK
-//       / LPAR ParameterTypeList RPAR
-//       / LPAR IdentifierList? RPAR
-//       )*
-
-// Pointer <- ( STAR TypeQualifier* )+
-
-// ParameterTypeList <- ParameterList (COMMA ELLIPSIS)?
-
-// ParameterList <- ParameterDeclaration (COMMA ParameterDeclaration)*
-
-// ParameterDeclaration
-//    <- DeclarationSpecifiers
-//       ( Declarator
-//       / AbstractDeclarator
-//       )?
-
-// IdentifierList <- Identifier (COMMA Identifier)*
-
-// TypeName
-//      <- SpecifierQualifierList AbstractDeclarator?
-struct Type *parse_type_name(struct Lexer *lxr)
-{
-    return parse_specifier_qualifier_list(lxr);
-}
-
-// AbstractDeclarator
-//    <- Pointer? DirectAbstractDeclarator
-//     / Pointer
-
-// DirectAbstractDeclarator
-//    <- ( LPAR AbstractDeclarator RPAR
-//       / LBRK (AssignmentExpression / STAR)? RBRK
-//       / LPAR ParameterTypeList? RPAR
-//       )
-//       ( LBRK (AssignmentExpression / STAR)? RBRK
-//       / LPAR ParameterTypeList? RPAR
-//       )*
-
-// TypedefName <- Identifier #{&TypedefName}
-
-// Initializer
-//    <- AssignmentExpression
-//     / LWING InitializerList COMMA? RWING
-
-// InitializerList <- Designation? Initializer (COMMA Designation? Initializer)*
-
-// Designation <- Designator+ EQU
-
-// Designator
-//    <- LBRK ConstantExpression RBRK
-//     / DOT Identifier
 
 // #-------------------------------------------------------------------------
 // #  A.2.3  Statements
@@ -338,42 +251,38 @@ bool display_stmt(struct Stmt *stmt)
     unimplemented;
 }
 
-// Statement
-//    <- LabeledStatement
-//     / CompoundStatement
-//     / ExpressionStatement
-//     / SelectionStatement
-//     / IterationStatement
-//     / JumpStatement
+// stmt ::= stmt_block
+//        | if_stmt
+//        | while_stmt
+//        | switch_stmt
+//        | labelled_stmt
+//        | jump_stmt
+//        | return_stmt
+//        | var_decl
+//        | expr_stmt
 struct Stmt *parse_statement(struct Lexer *lxr)
 {
     unimplemented;
 }
 
-// LabeledStatement
-//    <- Identifier COLON Statement
-//     / CASE ConstantExpression COLON Statement
-//     / DEFAULT COLON Statement
+// stmt_block ::= '{' stmt* '}'
 
-// CompoundStatement <- LWING ( Declaration / Statement )* RWING
+// if_stmt ::= 'if' '(' expression ')' stmt ('else' stmt)?
 
-// ExpressionStatement <- Expression? SEMI
+// while_stmt ::= 'while' '(' expression ')' stmt
 
-// SelectionStatement
-//    <- IF LPAR Expression RPAR Statement (ELSE Statement)?
-//     / SWITCH LPAR Expression RPAR Statement
+// switch_stmt ::= 'switch' '(' expression ')' stmt
 
-// IterationStatement
-//    <- WHILE LPAR Expression RPAR Statement
-//     / DO Statement WHILE LPAR Expression RPAR SEMI
-//     / FOR LPAR Expression? SEMI Expression? SEMI Expression? RPAR Statement
-//     / FOR LPAR Declaration Expression? SEMI Expression? RPAR Statement
+// case_stmt ::= 'case' expression ':'
+// default_stmt ::= 'default' ':'
 
-// JumpStatement
-//    <- GOTO Identifier SEMI
-//     / CONTINUE SEMI
-//     / BREAK SEMI
-//     / RETURN Expression? SEMI
+// jump_stmt ::= ('break' | 'continue') ';'
+
+// return_stmt ::= 'return' expression? ';'
+
+// var_decl ::= type 'ident' ('=' expression)? ';'
+
+// expr_stmt ::= expression ';'
 
 // #-------------------------------------------------------------------------
 // #  A.2.1  Expressions
@@ -879,7 +788,7 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 
         struct Type *type;
         if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
-            (type = parse_type_name(lxr)) &&
+            (type = parse_type(lxr)) &&
             lexer_expect(lxr, TOK_CLOSE_PAREN))
         {
             expr = malloc(sizeof(*expr));
@@ -915,7 +824,7 @@ struct Expr *parse_cast_expression(struct Lexer *lxr)
             struct Type *type;
             struct Expr *expr;
             if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
-                (type = parse_type_name(lxr)) &&
+                (type = parse_type(lxr)) &&
                 lexer_accept(lxr, TOK_CLOSE_PAREN) &&
                 (expr = parse_cast_expression(lxr)))
             {
@@ -1393,28 +1302,42 @@ void test_parse_types()
 
     printf("\n");
     lxr = lexer_init("  int  ");
-    if ((type = parse_type_specifier(&lxr)))
+    if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  bool  ");
-    if ((type = parse_type_specifier(&lxr)))
+    if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  char  ");
-    if ((type = parse_type_specifier(&lxr)))
+    if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  void  ");
-    if ((type = parse_type_specifier(&lxr)))
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  cstr_arr  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  char**  ");
+    if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
         perror("TEST FAILED");
@@ -1427,18 +1350,18 @@ void test_parse_stmts()
 void test_parse_decls()
 {
     struct Lexer lxr;
-    struct Decl *decl;
+    struct Item *decl;
 
     printf("\n");
     lxr = lexer_init("  #include <stdio.h>  ");
-    if ((decl = parse_decl_pound_include(&lxr)))
+    if ((decl = parse_compiler_directive(&lxr)))
         display_decl(stdout, decl);
     else
         perror("TEST FAILED");
 
     printf("\n");
     lxr = lexer_init("  #include \"my_file.h\"  ");
-    if ((decl = parse_decl_pound_include(&lxr)))
+    if ((decl = parse_compiler_directive(&lxr)))
         display_decl(stdout, decl);
     else
         perror("TEST FAILED");

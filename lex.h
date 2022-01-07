@@ -46,6 +46,7 @@ enum TokTag
     TOK_CHAR,
     TOK_BOOL,
     TOK_VOID,
+    TOK_CSTR_ARR,
     TOK_INCLUDE,
     TOK_RETURN,
     TOK_IF,
@@ -107,6 +108,7 @@ cstr_arr tok_tag_names = {
     "TOK_CHAR",
     "TOK_BOOL",
     "TOK_VOID",
+    "TOK_CSTR_ARR",
     "TOK_INCLUDE",
     "TOK_RETURN",
     "TOK_IF",
@@ -494,6 +496,9 @@ bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
         return true;
 
     if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "cstr_arr", TOK_CSTR_ARR, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
