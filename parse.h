@@ -42,6 +42,7 @@ void list_push(struct List *list, void *data)
     }
 }
 
+struct Item *parse_compiler_directive(struct Lexer *);
 bool display_struct_members(FILE *, struct List *);
 bool display_enum_members(FILE *, struct List *);
 struct Type *parse_direct_type(struct Lexer *);
@@ -80,21 +81,21 @@ struct Item
     } as;
 };
 
-bool display_decl(FILE *out, struct Item *decl)
+bool display_item(FILE *out, struct Item *item)
 {
-    switch (decl->tag)
+    switch (item->tag)
     {
     case ITEM_POUND_INCLUDE:
-        if (decl->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
+        if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
-            return fprintf_s(out, "#include <%s>", decl->as.pound_include.filename) >= 0;
+            return fprintf_s(out, "#include <%s>", item->as.pound_include.filename) >= 0;
         }
         else
         {
-            return fprintf_s(out, "#include \"%s\"", decl->as.pound_include.filename) >= 0;
+            return fprintf_s(out, "#include \"%s\"", item->as.pound_include.filename) >= 0;
         }
     default:
-        perror("Invalid Decl tag");
+        perror("Invalid Item tag");
         exit(1);
     }
 }
@@ -107,6 +108,15 @@ bool display_decl(FILE *out, struct Item *decl)
 //        | named_struct_or_union_decl
 //        | named_enum_decl
 //        | compiler_directive
+struct Item *parse_item(struct Lexer *lxr)
+{
+    struct Item *item;
+
+    if ((item = parse_compiler_directive(lxr)))
+        return item;
+
+    todo;
+}
 
 // function_decl ::= type 'ident' '(' unnamed_parameter_list? ')' ';'
 
@@ -472,9 +482,10 @@ struct Stmt
     int placeholder;
 };
 
-bool display_stmt(struct Stmt *stmt)
+bool display_stmt(FILE *out, struct Stmt *stmt)
 {
-    todo;
+    // todo;
+    return false;
 }
 
 // stmt ::= stmt_block
@@ -486,9 +497,10 @@ bool display_stmt(struct Stmt *stmt)
 //        | return_stmt
 //        | var_decl
 //        | expr_stmt
-struct Stmt *parse_statement(struct Lexer *lxr)
+struct Stmt *parse_stmt(struct Lexer *lxr)
 {
-    todo;
+    // todo;
+    return NULL;
 }
 
 // stmt_block ::= '{' stmt* '}'
@@ -1378,264 +1390,109 @@ struct Expr *parse_constant(struct Lexer *lxr)
 //////////////////////////////////// TESTS ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void test_parse_exprs()
+void test_expr(char *input)
 {
     struct Lexer lxr;
     struct Expr *expr;
 
     printf("\n");
-    lxr = lexer_init("-531");
+    lxr = lexer_init(input);
     if ((expr = parse_expression(&lxr)))
         display_expr(stdout, expr);
     else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  '\\n'   ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  true ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  false ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  my_dog->birth_date[100].year++ ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  my_func(1, 2, 3) ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  my_func(1, 2, 3, ) ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  my_func() ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  !*&*ptr_to_bool  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  sizeof(*expr)  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  sizeof(void)  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  (int) true ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  1 + 2 - 3 + 4 ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  100 >= 0 ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  100 != 0 ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  100 != 0 && -4 < -3  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  100 != 0 || -4 < -3  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  **ptr_ptr = *ptr = 123  ");
-    if ((expr = parse_expression(&lxr)))
-        display_expr(stdout, expr);
-    else
-        perror("TEST FAILED");
+        fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
-void test_parse_types()
+void test_parse_exprs()
+{
+    test_expr("  -531  ");
+    test_expr("  '\\n'   ");
+    test_expr("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
+    test_expr("  true ");
+    test_expr("  false ");
+    test_expr("  my_dog->birth_date[100].year++ ");
+    test_expr("  my_func(1, 2, 3) ");
+    test_expr("  my_func(1, 2, 3, ) ");
+    test_expr("  my_func() ");
+    test_expr("  !*&*ptr_to_bool  ");
+    test_expr("  sizeof(*expr)  ");
+    test_expr("  sizeof(void)  ");
+    test_expr("  (int) true ");
+    test_expr("  1 + 2 - 3 + 4 ");
+    test_expr("  100 >= 0 ");
+    test_expr("  100 != 0 ");
+    test_expr("  100 != 0 && -4 < -3  ");
+    test_expr("  100 != 0 || -4 < -3  ");
+    test_expr("  **ptr_ptr = *ptr = 123  ");
+}
+
+void test_type(char *input)
 {
     struct Lexer lxr;
     struct Type *type;
 
     printf("\n");
-    lxr = lexer_init("  int  ");
+    lxr = lexer_init(input);
     if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
-        perror("TEST FAILED");
+        fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
+}
+
+void test_parse_types()
+{
+    test_type("  int  ");
+    test_type("  bool  ");
+    test_type("  char  ");
+    test_type("  void  ");
+    test_type("  cstr_arr  ");
+    test_type("  cstr_arr  ");
+    test_type("  char**  ");
+    test_type("  struct Expr  ");
+    test_type("  enum Tag  ");
+    test_type("  struct { int x; int y; }  ");
+    test_type("  union { int x; void *y; }  ");
+    test_type("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
+    test_type("  enum { SOMETHING, TRAILING_COMMA, }  ");
+    test_type("  enum { }  ");
+}
+
+void test_stmt(char *input)
+{
+    struct Lexer lxr;
+    struct Stmt *stmt;
 
     printf("\n");
-    lxr = lexer_init("  bool  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
+    lxr = lexer_init(input);
+    if ((stmt = parse_stmt(&lxr)))
+        display_stmt(stdout, stmt);
     else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  char  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  void  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  cstr_arr  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  char**  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  struct Expr  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  enum Tag  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  struct { int x; int y; }  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  union { int x; void *y; }  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  enum { SOMETHING, TRAILING_COMMA, }  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
-
-    printf("\n");
-    lxr = lexer_init("  enum { }  ");
-    if ((type = parse_type(&lxr)))
-        display_type(stdout, type);
-    else
-        perror("TEST FAILED");
+        fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
 void test_parse_stmts()
 {
+    test_stmt("  int x;  ");
+    test_stmt("  int x = 123;  ");
 }
 
-void test_parse_decls()
+void test_item(char *input)
 {
     struct Lexer lxr;
-    struct Item *decl;
+    struct Item *item;
 
     printf("\n");
-    lxr = lexer_init("  #include <stdio.h>  ");
-    if ((decl = parse_compiler_directive(&lxr)))
-        display_decl(stdout, decl);
+    lxr = lexer_init(input);
+    if ((item = parse_item(&lxr)))
+        display_item(stdout, item);
     else
-        perror("TEST FAILED");
+        fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
+}
 
-    printf("\n");
-    lxr = lexer_init("  #include \"my_file.h\"  ");
-    if ((decl = parse_compiler_directive(&lxr)))
-        display_decl(stdout, decl);
-    else
-        perror("TEST FAILED");
+void test_parse_items()
+{
+    test_item("  #include <stdio.h>  ");
+    test_item("  #include \"my_file.h\"  ");
 }
 
 void test_parser()
@@ -1644,6 +1501,6 @@ void test_parser()
     test_parse_exprs();
     test_parse_types();
     test_parse_stmts();
-    test_parse_decls();
+    test_parse_items();
     printf("\n\n%s\n", "Tests finished!");
 }
