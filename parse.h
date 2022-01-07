@@ -482,6 +482,8 @@ struct Stmt
 {
     enum
     {
+        STMT_BREAK,
+        STMT_CONTINUE,
         STMT_RETURN,
         STMT_VAR_DECL,
         STMT_EXPRESSION,
@@ -513,6 +515,10 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 {
     switch (stmt->tag)
     {
+    case STMT_BREAK:
+        return fprintf_s(out, "break;\n") >= 0;
+    case STMT_CONTINUE:
+        return fprintf_s(out, "continue;\n") >= 0;
     case STMT_RETURN:
         if (stmt->as.ret.expr)
         {
@@ -563,6 +569,24 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 struct Stmt *parse_stmt(struct Lexer *lxr)
 {
     struct Stmt *stmt;
+
+    // BREAK STMT
+    if (lexer_accept(lxr, TOK_BREAK))
+    {
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_BREAK;
+
+        return stmt;
+    }
+
+    // CONTINUE STMT
+    if (lexer_accept(lxr, TOK_CONTINUE))
+    {
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_CONTINUE;
+
+        return stmt;
+    }
 
     // RETURN STMT
     if (lexer_accept(lxr, TOK_RETURN))
@@ -1586,6 +1610,8 @@ void test_stmt(char *input)
 void test_parse_stmts()
 {
     printf("\n\n");
+    test_stmt("  break;  ");
+    test_stmt("  continue;  ");
     test_stmt("  return 123;  ");
     test_stmt("  return;  ");
     test_stmt("  int x;  ");
