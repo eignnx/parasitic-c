@@ -43,6 +43,7 @@ void list_push(struct List *list, void *data)
 }
 
 bool display_struct_members(FILE *, struct List *);
+bool display_enum_members(FILE *, struct List *);
 struct Type *parse_direct_type(struct Lexer *);
 struct Type *parse_type(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
@@ -154,9 +155,24 @@ struct List parse_struct_member_list(struct Lexer *lxr)
     return list;
 }
 
-// anonymous_enum ::= 'enum' '{' enumerator_list '}'
+// enumerator_list ::= <empty string>
+//                   | 'ident' (',' 'ident')* ','?
+struct List parse_enumerator_list(struct Lexer *lxr)
+{
+    struct List members = list_init();
+    char *member;
 
-// enumerator_list ::= 'ident' (',' 'ident')* ','?
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        member = lxr->token;
+        list_push(&members, (void *)member);
+
+        if (!lexer_accept(lxr, TOK_COMMA))
+            return members;
+    }
+
+    return members;
+}
 
 // named_struct_decl ::= named_struct_ref '{' struct_member+ '}' ';'
 
@@ -207,6 +223,7 @@ struct Type
         TYPE_NAMED_ENUM_REF,
         TYPE_ANON_STRUCT,
         TYPE_ANON_UNION,
+        TYPE_ANON_ENUM,
     } tag;
 
     union
@@ -225,6 +242,11 @@ struct Type
         {
             struct List struct_members; // A `List` of `StructMember`s.
         } anon_struct_or_union;
+
+        struct
+        {
+            struct List enum_members; // A `List` of `char *`s.
+        } anon_enum;
     } as;
 };
 
@@ -257,6 +279,10 @@ bool display_type(FILE *out, struct Type *type)
         return fprintf_s(out, "union {\n") >= 0 &&
                display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
                fprintf_s(out, "}") >= 0;
+    case TYPE_ANON_ENUM:
+        return fprintf_s(out, "enum {\n") >= 0 &&
+               display_enum_members(out, &type->as.anon_enum.enum_members) &&
+               fprintf_s(out, "}") >= 0;
     default:
         perror("Invalid Type tag");
         exit(1);
@@ -281,6 +307,23 @@ bool display_struct_members(FILE *out, struct List *list)
         node = node->next;
     }
 
+    return true;
+}
+
+bool display_enum_members(FILE *out, struct List *list)
+{
+    struct ListNode *node = list->first;
+
+    while (node)
+    {
+        char *enum_constant_name = (char *)node->data;
+        bool result = fprintf_s(out, "    %s,\n", enum_constant_name) >= 0;
+
+        if (!result)
+            return false;
+
+        node = node->next;
+    }
     return true;
 }
 
@@ -313,6 +356,7 @@ struct Type *parse_type(struct Lexer *lxr)
 //               | anonymous_enum
 // named_struct_ref ::= 'struct' 'ident'
 // named_enum_ref ::= 'enum' 'ident'
+// anonymous_enum ::= 'enum' '{' enumerator_list '}'
 struct Type *parse_direct_type(struct Lexer *lxr)
 {
     struct Type *type;
@@ -373,6 +417,8 @@ struct Type *parse_direct_type(struct Lexer *lxr)
 
             return type;
         }
+
+        return NULL; // Unreachable.
     }
 
     if (lexer_accept(lxr, TOK_ENUM))
@@ -384,7 +430,20 @@ struct Type *parse_direct_type(struct Lexer *lxr)
             type->as.named.name = lxr->token;
             return type;
         }
-        todo; // anonymous enums
+
+        if (lexer_expect(lxr, TOK_OPEN_BRACE))
+        {
+            struct List members = parse_enumerator_list(lxr);
+            lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+            type = malloc(sizeof(*type));
+            type->tag = TYPE_ANON_ENUM;
+            type->as.anon_enum.enum_members = members;
+
+            return type;
+        }
+
+        return NULL; // Unreachable.
     }
 
     // ANON UNION
@@ -1528,6 +1587,27 @@ void test_parse_types()
 
     printf("\n");
     lxr = lexer_init("  union { int x; void *y; }  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  enum { SOMETHING, TRAILING_COMMA, }  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  enum { }  ");
     if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else
