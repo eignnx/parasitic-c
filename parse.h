@@ -483,6 +483,7 @@ struct Stmt
     enum
     {
         STMT_VAR_DECL,
+        STMT_EXPRESSION,
     } tag;
 
     union
@@ -493,6 +494,11 @@ struct Stmt
             char *name;
             struct Expr *initializer;
         } var_decl;
+
+        struct
+        {
+            struct Expr *expr;
+        } expression;
 
     } as;
 };
@@ -512,8 +518,11 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
         else
         {
             return display_type(out, stmt->as.var_decl.type) &&
-                   fprintf_s(out, " %s;", stmt->as.var_decl.name) >= 0;
+                   fprintf_s(out, " %s;\n", stmt->as.var_decl.name) >= 0;
         }
+    case STMT_EXPRESSION:
+        return display_expr(out, stmt->as.expression.expr) &&
+               fprintf_s(out, ";\n") >= 0;
     }
 }
 
@@ -540,6 +549,18 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
 
     if ((stmt = parse_var_decl(lxr)))
         return stmt;
+
+    struct Expr *expr;
+    if ((expr = parse_expression(lxr)))
+    {
+        lexer_expect(lxr, TOK_SEMI);
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_EXPRESSION;
+        stmt->as.expression.expr = expr;
+
+        return stmt;
+    }
 
     return NULL;
 }
@@ -1522,7 +1543,6 @@ void test_stmt(char *input)
     struct Lexer lxr;
     struct Stmt *stmt;
 
-    printf("\n");
     lxr = lexer_init(input);
     if ((stmt = parse_stmt(&lxr)))
         display_stmt(stdout, stmt);
@@ -1532,8 +1552,10 @@ void test_stmt(char *input)
 
 void test_parse_stmts()
 {
+    printf("\n\n");
     test_stmt("  int x;  ");
     test_stmt("  int x = 123;  ");
+    test_stmt("  launch_missiles(1, 2, 3);  ");
 }
 
 void test_item(char *input)
