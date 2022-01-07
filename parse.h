@@ -46,6 +46,8 @@ struct Item *parse_compiler_directive(struct Lexer *);
 bool display_struct_members(FILE *, struct List *);
 bool display_enum_members(FILE *, struct List *);
 struct Stmt *parse_var_decl(struct Lexer *);
+struct List parse_stmt_list(struct Lexer *);
+bool display_stmt_list(FILE *, struct List *);
 struct Type *parse_direct_type(struct Lexer *);
 struct Type *parse_type(struct Lexer *);
 struct Expr *parse_constant(struct Lexer *);
@@ -482,6 +484,7 @@ struct Stmt
 {
     enum
     {
+        STMT_BLOCK,
         STMT_BREAK,
         STMT_CONTINUE,
         STMT_RETURN,
@@ -491,6 +494,11 @@ struct Stmt
 
     union
     {
+        struct
+        {
+            struct List stmts; // A `List` of `Stmt*`s
+        } block;
+
         struct
         {
             struct Expr *expr; // Nullable ptr.
@@ -515,6 +523,10 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 {
     switch (stmt->tag)
     {
+    case STMT_BLOCK:
+        return fprintf_s(out, "{\n") >= 0 &&
+               display_stmt_list(out, &stmt->as.block.stmts) &&
+               fprintf_s(out, "}\n") >= 0;
     case STMT_BREAK:
         return fprintf_s(out, "break;\n") >= 0;
     case STMT_CONTINUE:
@@ -549,6 +561,24 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
     }
 }
 
+bool display_stmt_list(FILE *out, struct List *list)
+{
+    struct ListNode *node = list->first;
+
+    while (node)
+    {
+        struct Stmt *stmt = (struct Stmt *)node->data;
+        bool result = display_stmt(out, stmt);
+
+        if (!result)
+            return false;
+
+        node = node->next;
+    }
+
+    return true;
+}
+
 // stmt ::= stmt_block
 //        | if_stmt
 //        | while_stmt
@@ -569,6 +599,17 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 struct Stmt *parse_stmt(struct Lexer *lxr)
 {
     struct Stmt *stmt;
+
+    if (lexer_accept(lxr, TOK_OPEN_BRACE))
+    {
+        struct List stmts = parse_stmt_list(lxr);
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_BLOCK;
+        stmt->as.block.stmts = stmts;
+
+        return stmt;
+    }
 
     // BREAK STMT
     if (lexer_accept(lxr, TOK_BREAK))
@@ -625,7 +666,13 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
 // stmt_list ::= stmt*
 struct List parse_stmt_list(struct Lexer *lxr)
 {
-    todo;
+    struct List stmts = list_init();
+    struct Stmt *stmt;
+
+    while ((stmt = parse_stmt(lxr)))
+        list_push(&stmts, (void *)stmt);
+
+    return stmts;
 }
 
 // var_decl ::= type 'ident' ('=' expression)? ';'
@@ -1610,6 +1657,7 @@ void test_stmt(char *input)
 void test_parse_stmts()
 {
     printf("\n\n");
+    test_stmt("  { int x = 1; launch_missiles(x, 2, 3); }  ");
     test_stmt("  break;  ");
     test_stmt("  continue;  ");
     test_stmt("  return 123;  ");
