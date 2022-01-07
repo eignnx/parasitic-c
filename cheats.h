@@ -10,9 +10,9 @@
 
 typedef char *cstr_arr[];
 
-#define unimplemented                                                     \
-    fprintf(stderr, "\n%s:%d: Function `%s` is not yet implemented!\n\n", \
-            __FILE__, __LINE__, __func__);                                \
+#define todo                                                      \
+    fprintf(stderr, "\n%s:%d: work needed in function `%s`!\n\n", \
+            __FILE__, __LINE__, __func__);                        \
     exit(1)
 
 #endif // STD_PARAC_H

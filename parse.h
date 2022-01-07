@@ -1,7 +1,7 @@
 #include <stdio.h>  // fprintf_s, FILE, stdout
 #include <stdlib.h> // atoi, malloc, free
 #include "lex.h"    // lex, lex_all_input
-#include "cheats.h" // unimplemented
+#include "cheats.h" // todo
 
 // FORWARD DECLARATIONS
 struct Type *parse_direct_type(struct Lexer *);
@@ -87,11 +87,7 @@ bool display_decl(FILE *out, struct Item *decl)
 
 // enumerator_list ::= 'ident' (',' 'ident')* ','?
 
-// named_struct_or_union_ref ::= ('struct' | 'union') 'ident'
-
-// named_struct_or_union_decl ::= named_struct_or_union_ref '{' struct_member+ '}' ';'
-
-// named_enum_ref ::= 'enum' 'ident'
+// named_struct_decl ::= named_struct_ref '{' struct_member+ '}' ';'
 
 // named_enum_decl ::= named_enum_ref '{' enumerator_list '}' ';'
 
@@ -136,9 +132,8 @@ struct Type
 
         // Compound types
         TYPE_PTR,
-        // TYPE_STRUCT,
-        // TYPE_ENUM,
-        // TYPE_UNION,
+        TYPE_NAMED_STRUCT_REF,
+        TYPE_NAMED_ENUM_REF,
     } tag;
 
     union
@@ -147,6 +142,11 @@ struct Type
         {
             struct Type *child;
         } ptr;
+
+        struct
+        {
+            char *name;
+        } named;
     } as;
 };
 
@@ -167,6 +167,10 @@ bool display_type(FILE *out, struct Type *type)
     case TYPE_PTR:
         return display_type(out, type->as.ptr.child) &&
                fprintf_s(out, "*") >= 0;
+    case TYPE_NAMED_STRUCT_REF:
+        return fprintf_s(out, "struct %s", type->as.named.name) >= 0;
+    case TYPE_NAMED_ENUM_REF:
+        return fprintf_s(out, "enum %s", type->as.named.name) >= 0;
     default:
         perror("Invalid Type tag");
         exit(1);
@@ -195,46 +199,81 @@ struct Type *parse_type(struct Lexer *lxr)
 //               | 'int'
 //               | 'char'
 //               | 'bool'
-//               | 'cstr_arr' /* Temporary! */ TODO: impl
-//               | named_struct_or_union_ref
-//               | anonymous_struct_or_union
+//               | 'cstr_arr' /* Temporary! */
+//               | named_struct_ref
 //               | named_enum_ref
+//               | anonymous_struct_or_union
 //               | anonymous_enum
+// named_struct_ref ::= 'struct' 'ident'
+// named_enum_ref ::= 'enum' 'ident'
 struct Type *parse_direct_type(struct Lexer *lxr)
 {
-    if (!(lexer_accept(lxr, TOK_VOID) ||
-          lexer_accept(lxr, TOK_CHAR) ||
-          lexer_accept(lxr, TOK_INT) ||
-          lexer_accept(lxr, TOK_BOOL) ||
-          lexer_accept(lxr, TOK_CSTR_ARR)))
-        return NULL;
+    struct Type *type;
 
-    struct Type *type = malloc(sizeof(*type));
-
-    switch (lxr->tok_tag)
+    if (lexer_accept(lxr, TOK_VOID) ||
+        lexer_accept(lxr, TOK_CHAR) ||
+        lexer_accept(lxr, TOK_INT) ||
+        lexer_accept(lxr, TOK_BOOL) ||
+        lexer_accept(lxr, TOK_CSTR_ARR))
     {
-    case TOK_VOID:
-        type->tag = TYPE_VOID;
-        break;
-    case TOK_CHAR:
-        type->tag = TYPE_CHAR;
-        break;
-    case TOK_INT:
-        type->tag = TYPE_INT;
-        break;
-    case TOK_BOOL:
-        type->tag = TYPE_BOOL;
-        break;
-    case TOK_CSTR_ARR:
-        type->tag = TYPE_CSTR_ARR;
-        break;
+        type = malloc(sizeof(*type));
 
-    default:
-        puts("unknown type token!\n");
-        exit(1);
+        switch (lxr->tok_tag)
+        {
+        case TOK_VOID:
+            type->tag = TYPE_VOID;
+            break;
+        case TOK_CHAR:
+            type->tag = TYPE_CHAR;
+            break;
+        case TOK_INT:
+            type->tag = TYPE_INT;
+            break;
+        case TOK_BOOL:
+            type->tag = TYPE_BOOL;
+            break;
+        case TOK_CSTR_ARR:
+            type->tag = TYPE_CSTR_ARR;
+            break;
+
+        default:
+            puts("unknown type token!\n");
+            exit(1);
+        }
+
+        return type;
     }
 
-    return type;
+    if (lexer_accept(lxr, TOK_STRUCT))
+    {
+        if (lexer_accept(lxr, TOK_IDENT))
+        {
+            type = malloc(sizeof(*type));
+            type->tag = TYPE_NAMED_STRUCT_REF;
+            type->as.named.name = lxr->token;
+            return type;
+        }
+        todo; // anonymous structs
+    }
+
+    if (lexer_accept(lxr, TOK_ENUM))
+    {
+        if (lexer_accept(lxr, TOK_IDENT))
+        {
+            type = malloc(sizeof(*type));
+            type->tag = TYPE_NAMED_ENUM_REF;
+            type->as.named.name = lxr->token;
+            return type;
+        }
+        todo; // anonymous enums
+    }
+
+    if (lexer_accept(lxr, TOK_UNION))
+    {
+        todo;
+    }
+
+    return NULL;
 }
 
 // #-------------------------------------------------------------------------
@@ -248,7 +287,7 @@ struct Stmt
 
 bool display_stmt(struct Stmt *stmt)
 {
-    unimplemented;
+    todo;
 }
 
 // stmt ::= stmt_block
@@ -262,7 +301,7 @@ bool display_stmt(struct Stmt *stmt)
 //        | expr_stmt
 struct Stmt *parse_statement(struct Lexer *lxr)
 {
-    unimplemented;
+    todo;
 }
 
 // stmt_block ::= '{' stmt* '}'
@@ -1337,6 +1376,20 @@ void test_parse_types()
 
     printf("\n");
     lxr = lexer_init("  char**  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  struct Expr  ");
+    if ((type = parse_type(&lxr)))
+        display_type(stdout, type);
+    else
+        perror("TEST FAILED");
+
+    printf("\n");
+    lxr = lexer_init("  enum Tag  ");
     if ((type = parse_type(&lxr)))
         display_type(stdout, type);
     else

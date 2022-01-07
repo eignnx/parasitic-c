@@ -23,7 +23,7 @@ direct_type ::= 'void'
               | 'char'
               | 'bool'
               | 'cstr_arr' /* Temporary! */
-              | named_struct_or_union_ref
+              | named_struct_ref
               | anonymous_struct_or_union
               | named_enum_ref
               | anonymous_enum
@@ -34,8 +34,8 @@ struct_member ::= type 'ident' ';'
 anonymous_enum ::= 'enum' '{' enumerator_list '}'
 enumerator_list ::= 'ident' (',' 'ident')* ','?
 
-named_struct_or_union_ref ::= ('struct' | 'union') 'ident'
-named_struct_or_union_decl ::= named_struct_or_union_ref '{' struct_member+ '}' ';'
+named_struct_ref ::= 'struct' 'ident'
+named_struct_decl ::= named_struct_ref '{' struct_member+ '}' ';'
 
 named_enum_ref ::= 'enum' 'ident'
 named_enum_decl ::= named_enum_ref '{' enumerator_list '}' ';'
