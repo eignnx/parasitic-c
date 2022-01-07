@@ -50,8 +50,8 @@ struct Expr *parse_expression(struct Lexer *);
 struct Expr *parse_cast_expression(struct Lexer *);
 struct Expr *parse_assignment_expression(struct Lexer *);
 bool display_expr(FILE *, struct Expr *);
-struct ArgList *parse_argument_expression_list(struct Lexer *);
-bool display_arglist(FILE *, struct ArgList *);
+struct List parse_argument_expression_list(struct Lexer *);
+bool display_arglist(FILE *, struct List *);
 
 // #-------------------------------------------------------------------------
 // #  Items
@@ -537,7 +537,7 @@ struct Expr
         struct
         {
             struct Expr *callable;
-            struct ArgList *args;
+            struct List args;
         } call;
 
         struct
@@ -617,7 +617,7 @@ bool display_expr(FILE *out, struct Expr *expr)
     case EXPR_CALL:
         return display_expr(out, expr->as.call.callable) &&
                fprintf_s(out, "(") >= 0 &&
-               display_arglist(out, expr->as.call.args) &&
+               display_arglist(out, &expr->as.call.args) &&
                fprintf_s(out, ")") >= 0;
     case EXPR_DOT_FIELD_ACCESS:
         return display_expr(out, expr->as.field_access.object) &&
@@ -677,23 +677,32 @@ bool display_expr(FILE *out, struct Expr *expr)
     }
 }
 
-struct ArgList
+bool display_arglist(FILE *out, struct List *list)
 {
-    struct Expr *expr;
-    struct ArgList *next;
-};
+    struct ListNode *node = list->first;
 
-bool display_arglist(FILE *out, struct ArgList *list)
-{
-    if (!list)
-        return true;
+    while (node)
+    {
+        struct Expr *expr = (struct Expr *)node->data;
 
-    if (!list->next)
-        return display_expr(out, list->expr);
+        if (node->next)
+        {
+            bool result = display_expr(out, expr) &&
+                          fprintf_s(out, ", ") >= 0;
 
-    return display_expr(out, list->expr) &&
-           fprintf_s(out, ", ") >= 0 &&
-           display_arglist(out, list->next);
+            if (!result)
+                return false;
+
+            node = node->next;
+        }
+        else
+        {
+            // Don't display the comma.
+            return display_expr(out, expr);
+        }
+    }
+
+    return true;
 }
 
 // PrimaryExpression
@@ -781,9 +790,8 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
         // FUNCTION CALL
         if (lexer_accept(lxr, TOK_OPEN_PAREN))
         {
-            struct ArgList *arg_list = parse_argument_expression_list(lxr);
-            if (!lexer_expect(lxr, TOK_CLOSE_PAREN))
-                return NULL;
+            struct List arg_list = parse_argument_expression_list(lxr);
+            lexer_expect(lxr, TOK_CLOSE_PAREN);
 
             struct Expr *new_expr = malloc(sizeof(*new_expr));
             new_expr->tag = EXPR_CALL;
@@ -839,37 +847,25 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
 // ArgumentExpressionList
 //      <- <empty string>
 //       / AssignmentExpression (COMMA AssignmentExpression)*
-struct ArgList *parse_argument_expression_list(struct Lexer *lxr)
+struct List parse_argument_expression_list(struct Lexer *lxr)
 {
-    struct ArgList *first, *last;
     struct Expr *expr;
+    struct List list = list_init();
 
     if (!(expr = parse_assignment_expression(lxr)))
-        return (struct ArgList *)NULL;
+        return list;
 
-    first = malloc(sizeof(*first));
-    first->expr = expr;
-    first->next = NULL;
-
-    last = first;
+    list_push(&list, (void *)expr);
 
     while (lexer_accept(lxr, TOK_COMMA))
     {
-        struct ArgList *new_args;
-        if ((expr = parse_assignment_expression(lxr)))
-        {
-            new_args = malloc(sizeof(*new_args));
-            new_args->expr = expr;
-            new_args->next = NULL;
+        if (!(expr = parse_assignment_expression(lxr)))
+            break;
 
-            last->next = new_args;
-            last = new_args;
-            continue;
-        }
-        break;
+        list_push(&list, (void *)expr);
     }
 
-    return first;
+    return list;
 }
 
 // UnaryExpression
