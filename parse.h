@@ -482,6 +482,7 @@ struct Stmt
 {
     enum
     {
+        STMT_RETURN,
         STMT_VAR_DECL,
         STMT_EXPRESSION,
     } tag;
@@ -490,9 +491,14 @@ struct Stmt
     {
         struct
         {
+            struct Expr *expr; // Nullable ptr.
+        } ret;
+
+        struct
+        {
             struct Type *type;
             char *name;
-            struct Expr *initializer;
+            struct Expr *initializer; // Nullable ptr.
         } var_decl;
 
         struct
@@ -507,6 +513,17 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
 {
     switch (stmt->tag)
     {
+    case STMT_RETURN:
+        if (stmt->as.ret.expr)
+        {
+            return fprintf_s(out, "return ") >= 0 &&
+                   display_expr(out, stmt->as.ret.expr) &&
+                   fprintf_s(out, ";\n") >= 0;
+        }
+        else
+        {
+            return fprintf_s(out, "return;\n") >= 0;
+        }
     case STMT_VAR_DECL:
         if (stmt->as.var_decl.initializer)
         {
@@ -547,9 +564,25 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
 {
     struct Stmt *stmt;
 
+    // RETURN STMT
+    if (lexer_accept(lxr, TOK_RETURN))
+    {
+        struct Expr *expr = NULL;
+        expr = parse_expression(lxr);
+        lexer_expect(lxr, TOK_SEMI);
+
+        stmt = malloc(sizeof(*stmt));
+        stmt->tag = STMT_RETURN;
+        stmt->as.ret.expr = expr;
+
+        return stmt;
+    }
+
+    // VARIABLE DECLARATION STMT
     if ((stmt = parse_var_decl(lxr)))
         return stmt;
 
+    // EXPRESSION STMT
     struct Expr *expr;
     if ((expr = parse_expression(lxr)))
     {
@@ -1553,6 +1586,8 @@ void test_stmt(char *input)
 void test_parse_stmts()
 {
     printf("\n\n");
+    test_stmt("  return 123;  ");
+    test_stmt("  return;  ");
     test_stmt("  int x;  ");
     test_stmt("  int x = 123;  ");
     test_stmt("  launch_missiles(1, 2, 3);  ");
