@@ -42,6 +42,7 @@ void list_push(struct List *list, void *data)
     }
 }
 
+struct Item *parse_named_enum_decl(struct Lexer *);
 struct Item *parse_compiler_directive(struct Lexer *);
 bool display_struct_members(FILE *, struct List *);
 bool display_enum_members(FILE *, struct List *);
@@ -67,11 +68,18 @@ struct Item
 {
     enum
     {
+        ITEM_NAMED_ENUM_DECL,
         ITEM_POUND_INCLUDE,
     } tag;
 
     union
     {
+        struct
+        {
+            char *name;
+            struct List members; // A `List` of `char*`s.
+        } named_enum_decl;
+
         struct
         {
             char *filename;
@@ -89,6 +97,10 @@ bool display_item(FILE *out, struct Item *item)
 {
     switch (item->tag)
     {
+    case ITEM_NAMED_ENUM_DECL:
+        return fprintf_s(out, "enum %s {\n", item->as.named_enum_decl.name) >= 0 &&
+               display_enum_members(out, &item->as.named_enum_decl.members) &&
+               fprintf_s(out, "}\n") >= 0;
     case ITEM_POUND_INCLUDE:
         if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
@@ -98,9 +110,6 @@ bool display_item(FILE *out, struct Item *item)
         {
             return fprintf_s(out, "#include \"%s\"", item->as.pound_include.filename) >= 0;
         }
-    default:
-        perror("Invalid Item tag");
-        exit(1);
     }
 }
 
@@ -115,6 +124,9 @@ bool display_item(FILE *out, struct Item *item)
 struct Item *parse_item(struct Lexer *lxr)
 {
     struct Item *item;
+
+    if ((item = parse_named_enum_decl(lxr)))
+        return item;
 
     if ((item = parse_compiler_directive(lxr)))
         return item;
@@ -190,7 +202,28 @@ struct List parse_enumerator_list(struct Lexer *lxr)
 
 // named_struct_decl ::= named_struct_ref '{' struct_member+ '}' ';'
 
-// named_enum_decl ::= named_enum_ref '{' enumerator_list '}' ';'
+// named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
+struct Item *parse_named_enum_decl(struct Lexer *lxr)
+{
+    if (!lexer_accept(lxr, TOK_ENUM))
+        return NULL;
+
+    lexer_expect(lxr, TOK_IDENT);
+    char *name = lxr->token;
+
+    lexer_expect(lxr, TOK_OPEN_BRACE);
+    struct List members = parse_enumerator_list(lxr);
+    lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+    lexer_expect(lxr, TOK_SEMI);
+
+    struct Item *item = malloc(sizeof(*item));
+    item->tag = ITEM_NAMED_ENUM_DECL;
+    item->as.named_enum_decl.name = name;
+    item->as.named_enum_decl.members = members;
+
+    return item;
+}
 
 // compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
 struct Item *parse_compiler_directive(struct Lexer *lxr)
@@ -1772,7 +1805,7 @@ void test_expr(char *input)
 
     printf("\n");
     lxr = lexer_init(input);
-    if ((expr = parse_expression(&lxr)))
+    if ((expr = parse_expression(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_expr(stdout, expr);
     else
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
@@ -1809,7 +1842,7 @@ void test_type(char *input)
 
     printf("\n");
     lxr = lexer_init(input);
-    if ((type = parse_type(&lxr)))
+    if ((type = parse_type(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_type(stdout, type);
     else
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
@@ -1841,7 +1874,7 @@ void test_stmt(char *input)
 
     printf("\n");
     lxr = lexer_init(input);
-    if ((stmt = parse_stmt(&lxr)))
+    if ((stmt = parse_stmt(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_stmt(stdout, stmt);
     else
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
@@ -1873,7 +1906,7 @@ void test_item(char *input)
 
     printf("\n");
     lxr = lexer_init(input);
-    if ((item = parse_item(&lxr)))
+    if ((item = parse_item(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_item(stdout, item);
     else
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
@@ -1882,6 +1915,8 @@ void test_item(char *input)
 void test_parse_items()
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
+    test_item("  enum EmptyEnum {};  ");
+    test_item("  enum TokTag { TOK_IDENT, TOK_PLUS };  ");
     test_item("  #include <stdio.h>  ");
     test_item("  #include \"my_file.h\"  ");
 }
