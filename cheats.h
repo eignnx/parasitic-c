@@ -21,5 +21,6 @@ typedef char *cstr_arr[];
 // These are psuedo keywords that will be used in the defined language.
 #define fn(signature) signature
 #define fndecl(decl) decl
+#define global(signature) signature
 
 #endif // STD_PARAC_H

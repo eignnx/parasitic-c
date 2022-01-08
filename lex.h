@@ -3,7 +3,7 @@
 #include <ctype.h>   // isalpha, isalnum, isspace, isdigit
 #include <string.h>  // strncpy_s
 #include <stdbool.h> // true, false, bool
-#include "cheats.h"  // cstr_arr, fn, fndecl
+#include "cheats.h"  // cstr_arr, fn, fndecl, global
 
 enum TokTag
 {
@@ -65,6 +65,11 @@ enum TokTag
     TOK_ENUM,
     TOK_UNION,
 
+    // CHEAT KEYWORDS
+    TOK_FN,
+    TOK_FNDECL,
+    TOK_GLOBAL,
+
     // IDENTIFIER
     TOK_IDENT,
 
@@ -72,7 +77,7 @@ enum TokTag
     TOK_END_OF_INPUT, // $
 };
 
-cstr_arr tok_tag_names = {
+global(cstr_arr tok_tag_names) = {
     // SYMBOLS
     "TOK_OPEN_PAREN",
     "TOK_CLOSE_PAREN",
@@ -130,6 +135,11 @@ cstr_arr tok_tag_names = {
     "TOK_STRUCT",
     "TOK_ENUM",
     "TOK_UNION",
+
+    // CHEAT KEYWORDS
+    "TOK_FN",
+    "TOK_FNDECL",
+    "TOK_GLOBAL",
 
     // IDENTIFIER
     "TOK_IDENT",
@@ -558,6 +568,15 @@ fn(bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input))
         return true;
 
     if (expect_keyword(input, "union", TOK_UNION, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "fndecl", TOK_FNDECL, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "fn", TOK_FN, out_tok_typ, old_input, new_input))
+        return true;
+
+    if (expect_keyword(input, "global", TOK_GLOBAL, out_tok_typ, old_input, new_input))
         return true;
 
     if (expect_ident(input, &input, out_token))
