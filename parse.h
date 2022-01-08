@@ -568,9 +568,6 @@ fn(bool display_item(FILE *out, struct Item *item))
 //        | named_struct_or_union_decl
 //        | named_enum_decl
 //        | compiler_directive
-// global_def ::= 'global' '(' type 'ident' ')' '=' constant_expr ';'
-// named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
-// named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
 fn(struct Item *parse_item(struct Lexer *lxr))
 {
     struct Item *item;
@@ -586,6 +583,7 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // GLOBAL VARIABLE DEFINITION
+    // global_def ::= 'global' '(' type 'ident' ')' '=' constant_expr ';'
     if (lexer_accept(lxr, TOK_GLOBAL))
     {
         lexer_expect(lxr, TOK_OPEN_PAREN);
@@ -611,6 +609,7 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // STRUCT DEFINITION
+    // named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
     if (lexer_accept(lxr, TOK_STRUCT))
     {
         lexer_expect(lxr, TOK_IDENT);
@@ -629,6 +628,7 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // ENUM DEFINITION
+    // named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
     if (lexer_accept(lxr, TOK_ENUM))
     {
         lexer_expect(lxr, TOK_IDENT);
@@ -646,8 +646,27 @@ fn(struct Item *parse_item(struct Lexer *lxr))
         return item;
     }
 
-    if ((item = parse_compiler_directive(lxr)))
+    // COMPILER DIRECTIVE
+    // compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
+    if (lexer_accept(lxr, TOK_POUND))
+    {
+        lexer_expect(lxr, TOK_INCLUDE);
+
+        int kind;
+        if (lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME))
+            kind = (int)POUND_INCLUDE_ANGLE_BRACKETS;
+        else if (lexer_accept(lxr, TOK_LITERAL_STRING))
+            kind = (int)POUND_INCLUDE_DOUBLE_QUOTES;
+        else
+            return NULL;
+
+        item = malloc(sizeof(*item));
+        item->tag = ITEM_POUND_INCLUDE;
+        item->as.pound_include.filename = lxr->token;
+        item->as.pound_include.kind = kind;
+
         return item;
+    }
 
     return NULL;
 }
@@ -677,30 +696,6 @@ fn(struct List parse_enumerator_list(struct Lexer *lxr))
     }
 
     return members;
-}
-
-// compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
-fn(struct Item *parse_compiler_directive(struct Lexer *lxr))
-{
-    if (!lexer_accept(lxr, TOK_POUND))
-        return NULL;
-
-    if (!lexer_expect(lxr, TOK_INCLUDE))
-        return NULL;
-
-    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
-        return NULL;
-
-    struct Item *decl = malloc(sizeof(*decl));
-    decl->tag = ITEM_POUND_INCLUDE;
-    decl->as.pound_include.filename = lxr->token;
-
-    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
-        decl->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
-    else
-        decl->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
-
-    return decl;
 }
 
 // #-------------------------------------------------------------------------
