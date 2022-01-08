@@ -18,4 +18,8 @@ typedef char *cstr_arr[];
         exit(1);                                                      \
     } while (false)
 
+// These are psuedo keywords that will be used in the defined language.
+#define fn(signature) signature
+#define fndecl(decl) decl
+
 #endif // STD_PARAC_H

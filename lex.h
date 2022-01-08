@@ -3,7 +3,7 @@
 #include <ctype.h>   // isalpha, isalnum, isspace, isdigit
 #include <string.h>  // strncpy_s
 #include <stdbool.h> // true, false, bool
-#include "cheats.h"  // cstr_arr
+#include "cheats.h"  // cstr_arr, fn, fndecl
 
 enum TokTag
 {
@@ -138,14 +138,14 @@ cstr_arr tok_tag_names = {
     "TOK_END_OF_INPUT",
 };
 
-void advance_lexer();
+fndecl(void advance_lexer());
 
-int dbg_tok_tag(FILE *out, int tok_tag)
+fn(int dbg_tok_tag(FILE *out, int tok_tag))
 {
     return fprintf_s(out, "TOKEN %s", tok_tag_names[tok_tag]);
 }
 
-bool starts_with(char *input, char *target, char **new_input)
+fn(bool starts_with(char *input, char *target, char **new_input))
 {
     int i = 0;
     while (true)
@@ -172,7 +172,7 @@ bool starts_with(char *input, char *target, char **new_input)
 // "     " --> true
 // "qwerty" --> false
 // "" --> true (OK because EOF is fine)
-bool expect_space(char *input, char **new_input)
+fn(bool expect_space(char *input, char **new_input))
 {
     bool found_space = false;
 
@@ -205,13 +205,13 @@ bool expect_space(char *input, char **new_input)
 }
 
 // Returns `true` if at end of input.
-bool allow_whitespace(char *input, char **new_input)
+fn(bool allow_whitespace(char *input, char **new_input))
 {
     expect_space(input, new_input);
     return **new_input == '\0';
 }
 
-bool expect_ident(char *input, char **new_input, char **out_ident)
+fn(bool expect_ident(char *input, char **new_input, char **out_ident))
 {
     char *old_input = input;
     int i = 0;
@@ -231,12 +231,12 @@ bool expect_ident(char *input, char **new_input, char **out_ident)
     return false;
 }
 
-bool expect_symbol(
+fn(bool expect_symbol(
     char *input,
     char *expected_symbol,
     int expected_tok_typ,
     int *out_tok_typ,
-    char **new_input)
+    char **new_input))
 {
     if (starts_with(input, expected_symbol, &input))
     {
@@ -247,13 +247,13 @@ bool expect_symbol(
     return false;
 }
 
-bool expect_keyword(
+fn(bool expect_keyword(
     char *input,
     char *expected_kw,
     int expected_tok_typ,
     int *out_tok_typ,
     char *old_input,
-    char **new_input)
+    char **new_input))
 {
     if (starts_with(input, expected_kw, &input))
     {
@@ -278,7 +278,7 @@ bool expect_keyword(
     return false;
 }
 
-bool lex_literal_int(char *input, int *out_tok_typ, char **out_token, char **new_input)
+fn(bool lex_literal_int(char *input, int *out_tok_typ, char **out_token, char **new_input))
 {
     int i = 0;
 
@@ -303,7 +303,7 @@ bool lex_literal_int(char *input, int *out_tok_typ, char **out_token, char **new
     }
 }
 
-bool lex_literal_char(char *input, int *out_tok_typ, char **out_token, char **new_input)
+fn(bool lex_literal_char(char *input, int *out_tok_typ, char **out_token, char **new_input))
 {
     *new_input = input;
     int i = 0;
@@ -328,7 +328,7 @@ bool lex_literal_char(char *input, int *out_tok_typ, char **out_token, char **ne
     return true;
 }
 
-bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **new_input)
+fn(bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **new_input))
 {
     *new_input = input;
     int i = 0;
@@ -361,7 +361,7 @@ bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **
     return true;
 }
 
-bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_token, char **new_input)
+fn(bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_token, char **new_input))
 {
     *new_input = input;
     int i = 0;
@@ -393,7 +393,7 @@ bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_token,
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 // Returns `false` if at end of input, `true` otherwise.
-bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input)
+fn(bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input))
 {
     if (allow_whitespace(input, &input))
     {
@@ -585,7 +585,7 @@ struct Lexer
 };
 
 // Mutates global state of the lexer.
-bool lexer_advance(struct Lexer *lxr)
+fn(bool lexer_advance(struct Lexer *lxr))
 {
     lxr->token = lxr->next_token;
     lxr->tok_tag = lxr->next_tok_tag;
@@ -593,7 +593,7 @@ bool lexer_advance(struct Lexer *lxr)
     return true;
 }
 
-struct Lexer lexer_init(char *new_input)
+fn(struct Lexer lexer_init(char *new_input))
 {
     struct Lexer lxr;
 
@@ -609,7 +609,7 @@ struct Lexer lexer_init(char *new_input)
 }
 
 // Advanced lexer input if the token tag matches.
-bool lexer_accept(struct Lexer *lxr, enum TokTag tag)
+fn(bool lexer_accept(struct Lexer *lxr, enum TokTag tag))
 {
     // NOTE: we check against `next_tok_tag` (NOT `tok_tag`) in order to set up
     // `tok_tag` for calling code after `lexer_advance` is called here.
@@ -622,7 +622,7 @@ bool lexer_accept(struct Lexer *lxr, enum TokTag tag)
 }
 
 // Advanced lexer input if the token tag matches.
-bool lexer_expect(struct Lexer *lxr, enum TokTag tag)
+fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
 {
     if (lexer_accept(lxr, tag))
     {
@@ -637,7 +637,7 @@ bool lexer_expect(struct Lexer *lxr, enum TokTag tag)
     }
 }
 
-void lex_all_input(char *input)
+fn(void lex_all_input(char *input))
 {
     int out_tok_typ = -123214;
     char *token = "<EMPTY TOKEN>";
@@ -659,7 +659,7 @@ void lex_all_input(char *input)
     } while (out_tok_typ != TOK_END_OF_INPUT);
 }
 
-void test_lexer()
+fn(void test_lexer())
 {
     char *input =
         "#include <stdio.h>\n"

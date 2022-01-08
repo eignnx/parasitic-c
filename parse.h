@@ -1,7 +1,7 @@
 #include <stdio.h>  // fprintf_s, FILE, stdout
 #include <stdlib.h> // atoi, malloc, free
 #include "lex.h"    // lex, lex_all_input
-#include "cheats.h" // todo
+#include "cheats.h" // todo, fn, fndecl
 
 // FORWARD DECLARATIONS
 struct List
@@ -24,7 +24,7 @@ struct List list_init()
     return list;
 }
 
-void list_push(struct List *list, void *data)
+fn(void list_push(struct List *list, void *data))
 {
     struct ListNode *new_node = malloc(sizeof(*new_node));
     new_node->data = data;
@@ -52,11 +52,11 @@ struct StructMember
     char *field;
 };
 
-struct Type *parse_type(struct Lexer *);
+fndecl(struct Type *parse_type(struct Lexer *));
 
 // struct_member_list ::= struct_member*
 // struct_member ::= type 'ident' ';'
-struct List parse_struct_member_list(struct Lexer *lxr)
+fn(struct List parse_struct_member_list(struct Lexer *lxr))
 {
     struct Type *type;
     struct List list = list_init();
@@ -121,10 +121,10 @@ struct Type
     } as;
 };
 
-bool display_struct_members(FILE *, struct List *);
-bool display_enum_members(FILE *, struct List *);
+fndecl(bool display_struct_members(FILE *, struct List *));
+fndecl(bool display_enum_members(FILE *, struct List *));
 
-bool display_type(FILE *out, struct Type *type)
+fn(bool display_type(FILE *out, struct Type *type))
 {
     switch (type->tag)
     {
@@ -163,7 +163,7 @@ bool display_type(FILE *out, struct Type *type)
     }
 }
 
-bool display_struct_members(FILE *out, struct List *list)
+fn(bool display_struct_members(FILE *out, struct List *list))
 {
     struct ListNode *node = list->first;
 
@@ -184,7 +184,7 @@ bool display_struct_members(FILE *out, struct List *list)
     return true;
 }
 
-bool display_enum_members(FILE *out, struct List *list)
+fn(bool display_enum_members(FILE *out, struct List *list))
 {
     struct ListNode *node = list->first;
 
@@ -201,10 +201,10 @@ bool display_enum_members(FILE *out, struct List *list)
     return true;
 }
 
-struct Type *parse_direct_type(struct Lexer *);
+fndecl(struct Type *parse_direct_type(struct Lexer *));
 
 // type ::= direct_type '*'*
-struct Type *parse_type(struct Lexer *lxr)
+fn(struct Type *parse_type(struct Lexer *lxr))
 {
     struct Type *type;
 
@@ -221,7 +221,7 @@ struct Type *parse_type(struct Lexer *lxr)
     return type;
 }
 
-struct List parse_enumerator_list(struct Lexer *);
+fndecl(struct List parse_enumerator_list(struct Lexer *));
 
 // direct_type ::= 'void'
 //               | 'int'
@@ -236,7 +236,7 @@ struct List parse_enumerator_list(struct Lexer *);
 // named_enum_ref ::= 'enum' 'ident'
 // anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
 // anonymous_enum ::= 'enum' '{' enumerator_list '}'
-struct Type *parse_direct_type(struct Lexer *lxr)
+fn(struct Type *parse_direct_type(struct Lexer *lxr))
 {
     struct Type *type;
 
@@ -342,19 +342,19 @@ struct Type *parse_direct_type(struct Lexer *lxr)
     return NULL;
 }
 
-struct Item *parse_compiler_directive(struct Lexer *);
-struct Stmt *parse_var_decl(struct Lexer *);
-struct List parse_switch_arms(struct Lexer *);
-struct List parse_stmt_list(struct Lexer *);
-bool display_stmt_list(FILE *, struct List *);
-struct Expr *parse_constant(struct Lexer *);
-struct Expr *parse_expression(struct Lexer *);
-struct Expr *parse_cast_expression(struct Lexer *);
-struct Expr *parse_assignment_expression(struct Lexer *);
-bool display_expr(FILE *, struct Expr *);
-struct List parse_argument_expression_list(struct Lexer *);
-bool display_arglist(FILE *, struct List *);
-bool display_type(FILE *, struct Type *);
+fndecl(struct Item *parse_compiler_directive(struct Lexer *));
+fndecl(struct Stmt *parse_var_decl(struct Lexer *));
+fndecl(struct List parse_switch_arms(struct Lexer *));
+fndecl(struct List parse_stmt_list(struct Lexer *));
+fndecl(bool display_stmt_list(FILE *, struct List *));
+fndecl(struct Expr *parse_constant(struct Lexer *));
+fndecl(struct Expr *parse_expression(struct Lexer *));
+fndecl(struct Expr *parse_cast_expression(struct Lexer *));
+fndecl(struct Expr *parse_assignment_expression(struct Lexer *));
+fndecl(bool display_expr(FILE *, struct Expr *));
+fndecl(struct List parse_argument_expression_list(struct Lexer *));
+fndecl(bool display_arglist(FILE *, struct List *));
+fndecl(bool display_type(FILE *, struct Type *));
 
 // #-------------------------------------------------------------------------
 // #  Items
@@ -379,9 +379,9 @@ struct ConstantExpr
     } as;
 };
 
-bool display_constant_expr(FILE *, struct ConstantExpr *);
+fndecl(bool display_constant_expr(FILE *, struct ConstantExpr *));
 
-bool display_const_array(FILE *out, struct List *list)
+fn(bool display_const_array(FILE *out, struct List *list))
 {
     struct ListNode *node = list->first;
 
@@ -409,7 +409,7 @@ bool display_const_array(FILE *out, struct List *list)
     return true;
 }
 
-bool display_constant_expr(FILE *out, struct ConstantExpr *expr)
+fn(bool display_constant_expr(FILE *out, struct ConstantExpr *expr))
 {
     switch (expr->tag)
     {
@@ -426,9 +426,9 @@ bool display_constant_expr(FILE *out, struct ConstantExpr *expr)
     }
 }
 
-struct ConstantExpr *parse_constant_expr(struct Lexer *);
+fndecl(struct ConstantExpr *parse_constant_expr(struct Lexer *));
 
-struct List parse_initializer_list(struct Lexer *lxr)
+fn(struct List parse_initializer_list(struct Lexer *lxr))
 {
     struct List initializers = list_init();
     struct ConstantExpr *expr;
@@ -444,7 +444,7 @@ struct List parse_initializer_list(struct Lexer *lxr)
     return initializers;
 }
 
-struct ConstantExpr *parse_constant_expr(struct Lexer *lxr)
+fn(struct ConstantExpr *parse_constant_expr(struct Lexer *lxr))
 {
     struct ConstantExpr *expr;
 
@@ -530,7 +530,7 @@ struct Item
     } as;
 };
 
-bool display_item(FILE *out, struct Item *item)
+fn(bool display_item(FILE *out, struct Item *item))
 {
     switch (item->tag)
     {
@@ -570,7 +570,7 @@ bool display_item(FILE *out, struct Item *item)
 // constant_decl ::= type 'ident' '=' ( initializer_list | expression ) ';'
 // named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
 // named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
-struct Item *parse_item(struct Lexer *lxr)
+fn(struct Item *parse_item(struct Lexer *lxr))
 {
     struct Item *item;
     struct Type *type;
@@ -658,7 +658,7 @@ struct Item *parse_item(struct Lexer *lxr)
 
 // enumerator_list ::= <empty string>
 //                   | 'ident' (',' 'ident')* ','?
-struct List parse_enumerator_list(struct Lexer *lxr)
+fn(struct List parse_enumerator_list(struct Lexer *lxr))
 {
     struct List members = list_init();
     char *member;
@@ -676,7 +676,7 @@ struct List parse_enumerator_list(struct Lexer *lxr)
 }
 
 // compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
-struct Item *parse_compiler_directive(struct Lexer *lxr)
+fn(struct Item *parse_compiler_directive(struct Lexer *lxr))
 {
     if (!lexer_accept(lxr, TOK_POUND))
         return NULL;
@@ -770,7 +770,7 @@ struct SwitchArm
     struct List stmts; // A `List` of `Stmts*`s.
 };
 
-bool display_switch_arms(FILE *out, struct List *arms)
+fn(bool display_switch_arms(FILE *out, struct List *arms))
 {
     struct ListNode *node = arms->first;
 
@@ -802,7 +802,7 @@ bool display_switch_arms(FILE *out, struct List *arms)
     return true;
 }
 
-bool display_stmt(FILE *out, struct Stmt *stmt)
+fn(bool display_stmt(FILE *out, struct Stmt *stmt))
 {
     switch (stmt->tag)
     {
@@ -872,7 +872,7 @@ bool display_stmt(FILE *out, struct Stmt *stmt)
     }
 }
 
-bool display_stmt_list(FILE *out, struct List *list)
+fn(bool display_stmt_list(FILE *out, struct List *list))
 {
     struct ListNode *node = list->first;
 
@@ -907,7 +907,7 @@ bool display_stmt_list(FILE *out, struct List *list)
 // jump_stmt ::= ('break' | 'continue') ';'
 // return_stmt ::= 'return' expression? ';'
 // expr_stmt ::= expression ';'
-struct Stmt *parse_stmt(struct Lexer *lxr)
+fn(struct Stmt *parse_stmt(struct Lexer *lxr))
 {
     struct Stmt *stmt;
 
@@ -1036,7 +1036,7 @@ struct Stmt *parse_stmt(struct Lexer *lxr)
 }
 
 // stmt_list ::= stmt*
-struct List parse_stmt_list(struct Lexer *lxr)
+fn(struct List parse_stmt_list(struct Lexer *lxr))
 {
     struct List stmts = list_init();
     struct Stmt *stmt;
@@ -1048,7 +1048,7 @@ struct List parse_stmt_list(struct Lexer *lxr)
 }
 
 // var_decl ::= type 'ident' ('=' expression)? ';'
-struct Stmt *parse_var_decl(struct Lexer *lxr)
+fn(struct Stmt *parse_var_decl(struct Lexer *lxr))
 {
     struct Type *type;
 
@@ -1077,7 +1077,7 @@ struct Stmt *parse_var_decl(struct Lexer *lxr)
     return stmt;
 }
 
-struct List parse_switch_arms(struct Lexer *lxr)
+fn(struct List parse_switch_arms(struct Lexer *lxr))
 {
     struct List arms = list_init();
 
@@ -1249,14 +1249,14 @@ struct Expr
     } as;
 };
 
-bool display_bin_op(FILE *out, char *op, struct Expr *x, struct Expr *y)
+fn(bool display_bin_op(FILE *out, char *op, struct Expr *x, struct Expr *y))
 {
     return display_expr(out, x) &&
            fprintf_s(out, " %s ", op) >= 0 &&
            display_expr(out, y);
 }
 
-bool display_expr(FILE *out, struct Expr *expr)
+fn(bool display_expr(FILE *out, struct Expr *expr))
 {
     switch (expr->tag)
     {
@@ -1345,7 +1345,7 @@ bool display_expr(FILE *out, struct Expr *expr)
     }
 }
 
-bool display_arglist(FILE *out, struct List *list)
+fn(bool display_arglist(FILE *out, struct List *list))
 {
     struct ListNode *node = list->first;
 
@@ -1378,7 +1378,7 @@ bool display_arglist(FILE *out, struct List *list)
 //     / Constant
 //     / Identifier
 //     / LPAR Expression RPAR
-struct Expr *parse_primary_expression(struct Lexer *lxr)
+fn(struct Expr *parse_primary_expression(struct Lexer *lxr))
 {
     struct Expr *expr;
 
@@ -1430,7 +1430,7 @@ struct Expr *parse_primary_expression(struct Lexer *lxr)
 //       / INC
 //       / DEC          # :IGNORED
 //       )*
-struct Expr *parse_postfix_expression(struct Lexer *lxr)
+fn(struct Expr *parse_postfix_expression(struct Lexer *lxr))
 {
     struct Expr *expr;
 
@@ -1515,7 +1515,7 @@ struct Expr *parse_postfix_expression(struct Lexer *lxr)
 // ArgumentExpressionList
 //      <- <empty string>
 //       / AssignmentExpression (COMMA AssignmentExpression)*
-struct List parse_argument_expression_list(struct Lexer *lxr)
+fn(struct List parse_argument_expression_list(struct Lexer *lxr))
 {
     struct Expr *expr;
     struct List list = list_init();
@@ -1559,7 +1559,7 @@ struct List parse_argument_expression_list(struct Lexer *lxr)
 //                     | 'constant'
 //                     | '(' expression ')'
 //                     | '(' type_name ')'
-struct Expr *parse_unary_expression(struct Lexer *lxr)
+fn(struct Expr *parse_unary_expression(struct Lexer *lxr))
 {
     struct Expr *expr;
 
@@ -1647,7 +1647,7 @@ struct Expr *parse_unary_expression(struct Lexer *lxr)
 //                     | 'constant'
 //                     | '(' expression ')'
 //                     | '(' type_name ')'
-struct Expr *parse_cast_expression(struct Lexer *lxr)
+fn(struct Expr *parse_cast_expression(struct Lexer *lxr))
 {
     {
         struct Lexer saved_lxr = *lxr; // HACK: is there a better way?
@@ -1674,7 +1674,7 @@ struct Expr *parse_cast_expression(struct Lexer *lxr)
 
 // MultiplicativeExpression
 //      <- CastExpression ((STAR / DIV / MOD) CastExpression)*
-struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
+fn(struct Expr *parse_multiplicative_expression(struct Lexer *lxr))
 {
     // TODO: impl multiplication, division, modulo
     return parse_cast_expression(lxr);
@@ -1682,7 +1682,7 @@ struct Expr *parse_multiplicative_expression(struct Lexer *lxr)
 
 // AdditiveExpression
 //      <- MultiplicativeExpression ((PLUS / MINUS) MultiplicativeExpression)*
-struct Expr *parse_additive_expression(struct Lexer *lxr)
+fn(struct Expr *parse_additive_expression(struct Lexer *lxr))
 {
     struct Expr *accum;
 
@@ -1718,14 +1718,14 @@ struct Expr *parse_additive_expression(struct Lexer *lxr)
 
 // ShiftExpression
 //      <- AdditiveExpression ((LEFT / RIGHT) AdditiveExpression)*
-struct Expr *parse_shift_expression(struct Lexer *lxr)
+fn(struct Expr *parse_shift_expression(struct Lexer *lxr))
 {
     return parse_additive_expression(lxr);
 }
 
 // RelationalExpression
 //      <- ShiftExpression ((LE / GE / LT / GT) ShiftExpression)*
-struct Expr *parse_relational_expression(struct Lexer *lxr)
+fn(struct Expr *parse_relational_expression(struct Lexer *lxr))
 {
     struct Expr *accum;
 
@@ -1768,7 +1768,7 @@ struct Expr *parse_relational_expression(struct Lexer *lxr)
 
 // EqualityExpression
 //      <- RelationalExpression ((EQUEQU / BANGEQU) RelationalExpression)*
-struct Expr *parse_equality_expression(struct Lexer *lxr)
+fn(struct Expr *parse_equality_expression(struct Lexer *lxr))
 {
     struct Expr *accum;
 
@@ -1814,7 +1814,7 @@ struct Expr *parse_equality_expression(struct Lexer *lxr)
 
 // LogicalANDExpression
 //      <- InclusiveORExpression (ANDAND InclusiveORExpression)*
-struct Expr *parse_logical_and_expression(struct Lexer *lxr)
+fn(struct Expr *parse_logical_and_expression(struct Lexer *lxr))
 {
     struct Expr *accum;
 
@@ -1844,7 +1844,7 @@ struct Expr *parse_logical_and_expression(struct Lexer *lxr)
 
 // LogicalORExpression
 //      <- LogicalANDExpression (OROR LogicalANDExpression)*
-struct Expr *parse_logical_or_expression(struct Lexer *lxr)
+fn(struct Expr *parse_logical_or_expression(struct Lexer *lxr))
 {
     struct Expr *accum;
 
@@ -1874,7 +1874,7 @@ struct Expr *parse_logical_or_expression(struct Lexer *lxr)
 
 // ConditionalExpression
 //      <- LogicalORExpression (QUERY Expression COLON LogicalORExpression)* # :IGNORED
-struct Expr *parse_conditional_expression(struct Lexer *lxr)
+fn(struct Expr *parse_conditional_expression(struct Lexer *lxr))
 {
     return parse_logical_or_expression(lxr);
 }
@@ -1909,7 +1909,7 @@ struct Expr *parse_conditional_expression(struct Lexer *lxr)
 //                         | 'constant'
 //                         | '(' expression ')'
 //                         | '(' type_name ')'
-struct Expr *parse_assignment_expression(struct Lexer *lxr)
+fn(struct Expr *parse_assignment_expression(struct Lexer *lxr))
 {
     struct Expr *unary, *assignment;
 
@@ -1933,7 +1933,7 @@ struct Expr *parse_assignment_expression(struct Lexer *lxr)
 
 // Expression
 //      <- AssignmentExpression (COMMA AssignmentExpression)* # :IGNORED
-struct Expr *parse_expression(struct Lexer *lxr)
+fn(struct Expr *parse_expression(struct Lexer *lxr))
 {
     return parse_assignment_expression(lxr);
 }
@@ -1948,7 +1948,7 @@ struct Expr *parse_expression(struct Lexer *lxr)
 //     / EnumerationConstant   # :IGNORED
 //     / BooleanConstant       # :NEW
 //     / CharacterConstant
-struct Expr *parse_constant(struct Lexer *lxr)
+fn(struct Expr *parse_constant(struct Lexer *lxr))
 {
     if (lexer_accept(lxr, TOK_LITERAL_INT))
     {
@@ -1981,7 +1981,7 @@ struct Expr *parse_constant(struct Lexer *lxr)
 //////////////////////////////////// TESTS ////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void test_expr(char *input)
+fn(void test_expr(char *input))
 {
     struct Lexer lxr;
     struct Expr *expr;
@@ -1994,7 +1994,7 @@ void test_expr(char *input)
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
-void test_parse_exprs()
+fn(void test_parse_exprs())
 {
     printf("\n\n----------------------TEST EXPRS-----------------------------");
     test_expr("  -531  ");
@@ -2018,7 +2018,7 @@ void test_parse_exprs()
     test_expr("  **ptr_ptr = *ptr = 123  ");
 }
 
-void test_type(char *input)
+fn(void test_type(char *input))
 {
     struct Lexer lxr;
     struct Type *type;
@@ -2031,7 +2031,7 @@ void test_type(char *input)
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
-void test_parse_types()
+fn(void test_parse_types())
 {
     printf("\n\n----------------------TEST TYPES-----------------------------");
     test_type("  int  ");
@@ -2050,7 +2050,7 @@ void test_parse_types()
     test_type("  enum { }  ");
 }
 
-void test_stmt(char *input)
+fn(void test_stmt(char *input))
 {
     struct Lexer lxr;
     struct Stmt *stmt;
@@ -2063,7 +2063,7 @@ void test_stmt(char *input)
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
-void test_parse_stmts()
+fn(void test_parse_stmts())
 {
     printf("\n\n----------------------TEST STMTS-----------------------------");
     test_stmt("  {}  ");
@@ -2082,7 +2082,7 @@ void test_parse_stmts()
     test_stmt("  launch_missiles(1, 2, 3);  ");
 }
 
-void test_item(char *input)
+fn(void test_item(char *input))
 {
     struct Lexer lxr;
     struct Item *item;
@@ -2095,7 +2095,7 @@ void test_item(char *input)
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
-void test_parse_items()
+fn(void test_parse_items())
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
     test_item("  int my_const = 100;  ");
@@ -2108,7 +2108,7 @@ void test_parse_items()
     test_item("  #include \"my_file.h\"  ");
 }
 
-void test_parser()
+fn(void test_parser())
 {
     printf("%s\n", "Running parser tests...");
     test_parse_exprs();
