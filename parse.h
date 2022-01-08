@@ -490,6 +490,8 @@ struct Item
 {
     enum
     {
+        ITEM_FN_DECL,
+        ITEM_FN_DEF,
         ITEM_GLOBAL_DECL,
         ITEM_NAMED_STRUCT_DECL,
         ITEM_NAMED_ENUM_DECL,
@@ -498,6 +500,21 @@ struct Item
 
     union
     {
+        struct
+        {
+            char *name;
+            struct List param_types; // A `List` of `Type*`s.
+            struct Type *ret_type;
+        } fn_decl;
+
+        struct
+        {
+            char *name;
+            struct List params; // A `List` of `Parameter*`s.
+            struct Type *ret_type;
+            struct List body_stmts; // A `List` of `Stmt*`s.
+        } fn_def;
+
         struct
         {
             struct Type *type;
@@ -530,10 +547,87 @@ struct Item
     } as;
 };
 
+fn(bool display_param_types(FILE *out, struct List *param_types))
+{
+    struct ListNode *node = param_types->first;
+
+    while (node)
+    {
+        struct Type *type = (struct Type *)node->data;
+
+        if (node->next)
+        {
+            bool result = display_type(out, type) &&
+                          fprintf_s(out, ", ");
+            if (!result)
+                return false;
+        }
+        else
+        {
+            bool result = display_type(out, type);
+            if (!result)
+                return false;
+        }
+
+        node = node->next;
+    }
+
+    return true;
+}
+
+struct FnParam
+{
+    struct Type *type;
+    char *name;
+};
+
+fn(bool display_fn_params(FILE *out, struct List *params))
+{
+    struct ListNode *node = params->first;
+
+    while (node)
+    {
+        struct FnParam *param = (struct FnParam *)node->data;
+
+        if (node->next)
+        {
+            bool result = display_type(out, param->type) &&
+                          fprintf_s(out, " %s, ", param->name);
+            if (!result)
+                return false;
+        }
+        else
+        {
+            bool result = display_type(out, param->type) &&
+                          fprintf_s(out, " %s", param->name);
+            if (!result)
+                return false;
+        }
+
+        node = node->next;
+    }
+
+    return true;
+}
+
 fn(bool display_item(FILE *out, struct Item *item))
 {
     switch (item->tag)
     {
+    case ITEM_FN_DECL:
+        return fprintf_s(out, "fndecl(") >= 0 &&
+               display_type(out, item->as.fn_decl.ret_type) &&
+               fprintf_s(out, " %s(", item->as.fn_decl.name) >= 0 &&
+               display_param_types(out, &item->as.fn_decl.param_types) &&
+               fprintf_s(out, "));\n") >= 0;
+    case ITEM_FN_DEF:
+        return fprintf_s(out, "fn(") >= 0 &&
+               display_type(out, item->as.fn_def.ret_type) &&
+               fprintf_s(out, " %s(", item->as.fn_def.name) >= 0 &&
+               display_fn_params(out, &item->as.fn_def.params) &&
+               fprintf_s(out, "))\n{\n") >= 0 &&
+               display_stmt_list(out, &item->as.fn_def.body_stmts) &&
+               fprintf_s(out, "}\n") >= 0;
     case ITEM_GLOBAL_DECL:
         return fprintf_s(out, "global(") >= 0 &&
                display_type(out, item->as.global_decl.type) &&
@@ -562,6 +656,46 @@ fn(bool display_item(FILE *out, struct Item *item))
 
 // translation_unit ::= item*
 
+// unnamed_parameter_list ::= type (',' type)* ','?
+fn(struct List parse_param_types(struct Lexer *lxr))
+{
+    struct List types = list_init();
+    struct Type *type;
+
+    while ((type = parse_type(lxr)))
+    {
+        list_push(&types, type);
+        if (!lexer_accept(lxr, TOK_COMMA))
+            break;
+    }
+
+    return types;
+}
+
+// parameter_list ::= type 'ident' (',' type 'ident')* ','?
+fn(struct List parse_parameters(struct Lexer *lxr))
+{
+    struct List params = list_init();
+    struct Type *type;
+
+    while ((type = parse_type(lxr)))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        char *name = lxr->token;
+
+        struct FnParam *param = malloc(sizeof(*param));
+        param->type = type;
+        param->name = name;
+
+        list_push(&params, (void *)param);
+
+        if (!lexer_accept(lxr, TOK_COMMA))
+            break;
+    }
+
+    return params;
+}
+
 // item ::= function_decl
 //        | function_def
 //        | global_def
@@ -572,14 +706,57 @@ fn(struct Item *parse_item(struct Lexer *lxr))
 {
     struct Item *item;
 
+    // function_decl ::= 'fndecl' '(' type 'ident' '(' unnamed_parameter_list? ')' ')' ';'
     if (lexer_accept(lxr, TOK_FNDECL))
     {
-        todo;
+        struct Type *ret_type;
+
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        if (!(ret_type = parse_type(lxr)))
+            todo; // Report error
+        lexer_expect(lxr, TOK_IDENT);
+        char *name = lxr->token;
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct List param_types = parse_param_types(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        lexer_expect(lxr, TOK_SEMI);
+
+        item = malloc(sizeof(*item));
+        item->tag = ITEM_FN_DECL;
+        item->as.fn_decl.name = name;
+        item->as.fn_decl.param_types = param_types;
+        item->as.fn_decl.ret_type = ret_type;
+
+        return item;
     }
 
+    // function_def ::= 'fn' '(' type 'ident' '(' parameter_list? ')' ')' stmt_block
     if (lexer_accept(lxr, TOK_FN))
     {
-        todo;
+        struct Type *ret_type;
+
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        if (!(ret_type = parse_type(lxr)))
+            todo; // Report error
+        lexer_expect(lxr, TOK_IDENT);
+        char *name = lxr->token;
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct List param_types = parse_parameters(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        struct List body_stmts = parse_stmt_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+        item = malloc(sizeof(*item));
+        item->tag = ITEM_FN_DEF;
+        item->as.fn_def.name = name;
+        item->as.fn_def.params = param_types;
+        item->as.fn_def.ret_type = ret_type;
+        item->as.fn_def.body_stmts = body_stmts;
+
+        return item;
     }
 
     // GLOBAL VARIABLE DEFINITION
@@ -670,12 +847,6 @@ fn(struct Item *parse_item(struct Lexer *lxr))
 
     return NULL;
 }
-
-// function_decl ::= 'fndecl' '(' type 'ident' '(' unnamed_parameter_list? ')' ')' ';'
-// unnamed_parameter_list ::= type (',' type)* ','?
-
-// function_def ::= 'fn' '(' type 'ident' '(' parameter_list? ')' ')' stmt_block
-// parameter_list ::= type 'ident' (',' type 'ident')* ','?
 
 // initializer_list ::= '{' '}' | '{' constant_expr (',' constant_expr )* ','? '}'
 
@@ -2105,6 +2276,11 @@ fn(void test_item(char *input))
 fn(void test_parse_items())
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
+    test_item("  fndecl(int foo(int, int));  ");
+    test_item("  fndecl(void bar());  ");
+    test_item("  fn(int foo(int x, int y)) { return x + y; }  ");
+    test_item("  fn(void bar()) {}  ");
+    test_item("  fn(void three_things()) { a(); b(); c(); }  ");
     test_item("  global(int my_const) = 100;  ");
     test_item("  global(cstr_arr names) = { \"Jenn\", \"Tim\", \"Scott\", };  ");
     test_item("  struct EmptyStruct {};  ");
