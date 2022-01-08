@@ -42,136 +42,17 @@ void list_push(struct List *list, void *data)
     }
 }
 
-struct Item *parse_named_struct_decl(struct Lexer *);
-struct Item *parse_named_enum_decl(struct Lexer *);
-struct Item *parse_compiler_directive(struct Lexer *);
-bool display_struct_members(FILE *, struct List *);
-bool display_enum_members(FILE *, struct List *);
-struct Stmt *parse_var_decl(struct Lexer *);
-struct List parse_switch_arms(struct Lexer *);
-struct List parse_stmt_list(struct Lexer *);
-bool display_stmt_list(FILE *, struct List *);
-struct Type *parse_direct_type(struct Lexer *);
-struct Type *parse_type(struct Lexer *);
-struct Expr *parse_constant(struct Lexer *);
-struct Expr *parse_expression(struct Lexer *);
-struct Expr *parse_cast_expression(struct Lexer *);
-struct Expr *parse_assignment_expression(struct Lexer *);
-bool display_expr(FILE *, struct Expr *);
-struct List parse_argument_expression_list(struct Lexer *);
-bool display_arglist(FILE *, struct List *);
-
 // #-------------------------------------------------------------------------
-// #  Items
+// #  Types
 // #-------------------------------------------------------------------------
-
-struct Item
-{
-    enum
-    {
-        ITEM_NAMED_STRUCT_DECL,
-        ITEM_NAMED_ENUM_DECL,
-        ITEM_POUND_INCLUDE,
-    } tag;
-
-    union
-    {
-        struct
-        {
-            char *name;
-            struct List members; // A `List` of `StructMember`s.
-        } named_struct_decl;
-
-        struct
-        {
-            char *name;
-            struct List members; // A `List` of `char*`s.
-        } named_enum_decl;
-
-        struct
-        {
-            char *filename;
-            enum
-            {
-                POUND_INCLUDE_ANGLE_BRACKETS,
-                POUND_INCLUDE_DOUBLE_QUOTES,
-            } kind;
-        } pound_include;
-
-    } as;
-};
-
-bool display_item(FILE *out, struct Item *item)
-{
-    switch (item->tag)
-    {
-    case ITEM_NAMED_STRUCT_DECL:
-        return fprintf_s(out, "struct %s {\n", item->as.named_struct_decl.name) >= 0 &&
-               display_struct_members(out, &item->as.named_struct_decl.members) &&
-               fprintf_s(out, "};\n") >= 0;
-    case ITEM_NAMED_ENUM_DECL:
-        return fprintf_s(out, "enum %s {\n", item->as.named_enum_decl.name) >= 0 &&
-               display_enum_members(out, &item->as.named_enum_decl.members) &&
-               fprintf_s(out, "};\n") >= 0;
-    case ITEM_POUND_INCLUDE:
-        if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
-        {
-            return fprintf_s(out, "#include <%s>", item->as.pound_include.filename) >= 0;
-        }
-        else
-        {
-            return fprintf_s(out, "#include \"%s\"", item->as.pound_include.filename) >= 0;
-        }
-    }
-}
-
-// translation_unit ::= item*
-
-// item ::= function_decl
-//        | function_def
-//        | constant_decl
-//        | named_struct_or_union_decl
-//        | named_enum_decl
-//        | compiler_directive
-struct Item *parse_item(struct Lexer *lxr)
-{
-    struct Item *item;
-
-    if ((item = parse_named_struct_decl(lxr)))
-        return item;
-
-    if ((item = parse_named_enum_decl(lxr)))
-        return item;
-
-    if ((item = parse_compiler_directive(lxr)))
-        return item;
-
-    return NULL;
-}
-
-// function_decl ::= type 'ident' '(' unnamed_parameter_list? ')' ';'
-
-// function_def ::= type 'ident' '(' parameter_list? ')' stmt_block
-
-// unnamed_parameter_list ::= type (',' type)* ','?
-
-// parameter_list ::= type 'ident' (',' type 'ident')* ','?
-
-// constant_decl ::= type 'ident' '=' ( initializer_list | expression ) ';'
-
-// initializer_list ::= '{' '}' | '{' expression (',' expression)* ','? '}'
-
-// anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
-struct Type *parse_anon_struct_or_union(struct Lexer *lxr)
-{
-    todo;
-}
 
 struct StructMember
 {
     struct Type *type;
     char *field;
 };
+
+struct Type *parse_type(struct Lexer *);
 
 // struct_member_list ::= struct_member*
 // struct_member ::= type 'ident' ';'
@@ -195,99 +76,6 @@ struct List parse_struct_member_list(struct Lexer *lxr)
 
     return list;
 }
-
-// enumerator_list ::= <empty string>
-//                   | 'ident' (',' 'ident')* ','?
-struct List parse_enumerator_list(struct Lexer *lxr)
-{
-    struct List members = list_init();
-    char *member;
-
-    while (lexer_accept(lxr, TOK_IDENT))
-    {
-        member = lxr->token;
-        list_push(&members, (void *)member);
-
-        if (!lexer_accept(lxr, TOK_COMMA))
-            return members;
-    }
-
-    return members;
-}
-
-// named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
-struct Item *parse_named_struct_decl(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_STRUCT))
-        return NULL;
-
-    lexer_expect(lxr, TOK_IDENT);
-    char *name = lxr->token;
-
-    lexer_expect(lxr, TOK_OPEN_BRACE);
-    struct List members = parse_struct_member_list(lxr);
-    lexer_expect(lxr, TOK_CLOSE_BRACE);
-
-    lexer_expect(lxr, TOK_SEMI);
-
-    struct Item *item = malloc(sizeof(*item));
-    item->tag = ITEM_NAMED_STRUCT_DECL;
-    item->as.named_struct_decl.name = name;
-    item->as.named_struct_decl.members = members;
-
-    return item;
-}
-
-// named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
-struct Item *parse_named_enum_decl(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_ENUM))
-        return NULL;
-
-    lexer_expect(lxr, TOK_IDENT);
-    char *name = lxr->token;
-
-    lexer_expect(lxr, TOK_OPEN_BRACE);
-    struct List members = parse_enumerator_list(lxr);
-    lexer_expect(lxr, TOK_CLOSE_BRACE);
-
-    lexer_expect(lxr, TOK_SEMI);
-
-    struct Item *item = malloc(sizeof(*item));
-    item->tag = ITEM_NAMED_ENUM_DECL;
-    item->as.named_enum_decl.name = name;
-    item->as.named_enum_decl.members = members;
-
-    return item;
-}
-
-// compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
-struct Item *parse_compiler_directive(struct Lexer *lxr)
-{
-    if (!lexer_accept(lxr, TOK_POUND))
-        return NULL;
-
-    if (!lexer_expect(lxr, TOK_INCLUDE))
-        return NULL;
-
-    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
-        return NULL;
-
-    struct Item *decl = malloc(sizeof(*decl));
-    decl->tag = ITEM_POUND_INCLUDE;
-    decl->as.pound_include.filename = lxr->token;
-
-    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
-        decl->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
-    else
-        decl->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
-
-    return decl;
-}
-
-// #-------------------------------------------------------------------------
-// #  Types
-// #-------------------------------------------------------------------------
 
 struct Type
 {
@@ -332,6 +120,9 @@ struct Type
         } anon_enum;
     } as;
 };
+
+bool display_struct_members(FILE *, struct List *);
+bool display_enum_members(FILE *, struct List *);
 
 bool display_type(FILE *out, struct Type *type)
 {
@@ -410,6 +201,8 @@ bool display_enum_members(FILE *out, struct List *list)
     return true;
 }
 
+struct Type *parse_direct_type(struct Lexer *);
+
 // type ::= direct_type '*'*
 struct Type *parse_type(struct Lexer *lxr)
 {
@@ -428,6 +221,8 @@ struct Type *parse_type(struct Lexer *lxr)
     return type;
 }
 
+struct List parse_enumerator_list(struct Lexer *);
+
 // direct_type ::= 'void'
 //               | 'int'
 //               | 'char'
@@ -439,6 +234,7 @@ struct Type *parse_type(struct Lexer *lxr)
 //               | anonymous_enum
 // named_struct_ref ::= 'struct' 'ident'
 // named_enum_ref ::= 'enum' 'ident'
+// anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
 // anonymous_enum ::= 'enum' '{' enumerator_list '}'
 struct Type *parse_direct_type(struct Lexer *lxr)
 {
@@ -544,6 +340,363 @@ struct Type *parse_direct_type(struct Lexer *lxr)
     }
 
     return NULL;
+}
+
+struct Item *parse_compiler_directive(struct Lexer *);
+struct Stmt *parse_var_decl(struct Lexer *);
+struct List parse_switch_arms(struct Lexer *);
+struct List parse_stmt_list(struct Lexer *);
+bool display_stmt_list(FILE *, struct List *);
+struct Expr *parse_constant(struct Lexer *);
+struct Expr *parse_expression(struct Lexer *);
+struct Expr *parse_cast_expression(struct Lexer *);
+struct Expr *parse_assignment_expression(struct Lexer *);
+bool display_expr(FILE *, struct Expr *);
+struct List parse_argument_expression_list(struct Lexer *);
+bool display_arglist(FILE *, struct List *);
+bool display_type(FILE *, struct Type *);
+
+// #-------------------------------------------------------------------------
+// #  Items
+// #-------------------------------------------------------------------------
+
+struct ConstantExpr
+{
+    enum
+    {
+        CONST_INT,
+        CONST_CSTR,
+        CONST_ARRAY,
+        CONST_IDENT,
+    } tag;
+
+    union
+    {
+        int const_int;
+        char *const_cstr;
+        struct List const_array; // A `List` of `ConstExpr*`s.
+        char *const_ident;
+    } as;
+};
+
+bool display_constant_expr(FILE *, struct ConstantExpr *);
+
+bool display_const_array(FILE *out, struct List *list)
+{
+    struct ListNode *node = list->first;
+
+    while (node)
+    {
+        struct ConstantExpr *expr = (struct ConstantExpr *)node->data;
+
+        if (node->next)
+        {
+            bool result = display_constant_expr(out, expr) &&
+                          fprintf_s(out, ",\n") >= 0;
+            if (!result)
+                return false;
+        }
+        else
+        {
+            bool result = display_constant_expr(out, expr) &&
+                          fprintf_s(out, "\n") >= 0;
+            if (!result)
+                return false;
+        }
+
+        node = node->next;
+    }
+    return true;
+}
+
+bool display_constant_expr(FILE *out, struct ConstantExpr *expr)
+{
+    switch (expr->tag)
+    {
+    case CONST_INT:
+        return fprintf_s(out, "%d", expr->as.const_int) >= 0;
+    case CONST_CSTR:
+        return fprintf_s(out, "\"%s\"", expr->as.const_cstr) >= 0;
+    case CONST_ARRAY:
+        return fprintf_s(out, "{\n") >= 0 &&
+               display_const_array(out, &expr->as.const_array) &&
+               fprintf_s(out, "}") >= 0;
+    case CONST_IDENT:
+        return fprintf_s(out, "%s", expr->as.const_ident) >= 0;
+    }
+}
+
+struct ConstantExpr *parse_constant_expr(struct Lexer *);
+
+struct List parse_initializer_list(struct Lexer *lxr)
+{
+    struct List initializers = list_init();
+    struct ConstantExpr *expr;
+
+    while ((expr = parse_constant_expr(lxr)))
+    {
+        if (!lexer_accept(lxr, TOK_COMMA))
+            break;
+
+        list_push(&initializers, expr);
+    }
+
+    return initializers;
+}
+
+struct ConstantExpr *parse_constant_expr(struct Lexer *lxr)
+{
+    struct ConstantExpr *expr;
+
+    if (lexer_accept(lxr, TOK_LITERAL_INT))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = CONST_INT;
+        expr->as.const_int = atoi(lxr->token);
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_LITERAL_STRING))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = CONST_CSTR;
+        expr->as.const_cstr = lxr->token;
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_OPEN_BRACE))
+    {
+        struct List initializers = parse_initializer_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = CONST_ARRAY;
+        expr->as.const_array = initializers;
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_IDENT))
+    {
+        expr = malloc(sizeof(*expr));
+        expr->tag = CONST_IDENT;
+        expr->as.const_ident = lxr->token;
+        return expr;
+    }
+
+    return NULL;
+}
+
+struct Item
+{
+    enum
+    {
+        ITEM_CONSTANT_DECL,
+        ITEM_NAMED_STRUCT_DECL,
+        ITEM_NAMED_ENUM_DECL,
+        ITEM_POUND_INCLUDE,
+    } tag;
+
+    union
+    {
+        struct
+        {
+            struct Type *type;
+            char *name;
+            struct ConstantExpr *initializer;
+        } constant_decl;
+
+        struct
+        {
+            char *name;
+            struct List members; // A `List` of `StructMember`s.
+        } named_struct_decl;
+
+        struct
+        {
+            char *name;
+            struct List members; // A `List` of `char*`s.
+        } named_enum_decl;
+
+        struct
+        {
+            char *filename;
+            enum
+            {
+                POUND_INCLUDE_ANGLE_BRACKETS,
+                POUND_INCLUDE_DOUBLE_QUOTES,
+            } kind;
+        } pound_include;
+
+    } as;
+};
+
+bool display_item(FILE *out, struct Item *item)
+{
+    switch (item->tag)
+    {
+    case ITEM_CONSTANT_DECL:
+        return display_type(out, item->as.constant_decl.type) &&
+               fprintf_s(out, " %s = ", item->as.constant_decl.name) >= 0 &&
+               display_constant_expr(out, item->as.constant_decl.initializer) &&
+               fprintf_s(out, ";") >= 0;
+    case ITEM_NAMED_STRUCT_DECL:
+        return fprintf_s(out, "struct %s {\n", item->as.named_struct_decl.name) >= 0 &&
+               display_struct_members(out, &item->as.named_struct_decl.members) &&
+               fprintf_s(out, "};\n") >= 0;
+    case ITEM_NAMED_ENUM_DECL:
+        return fprintf_s(out, "enum %s {\n", item->as.named_enum_decl.name) >= 0 &&
+               display_enum_members(out, &item->as.named_enum_decl.members) &&
+               fprintf_s(out, "};\n") >= 0;
+    case ITEM_POUND_INCLUDE:
+        if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
+        {
+            return fprintf_s(out, "#include <%s>", item->as.pound_include.filename) >= 0;
+        }
+        else
+        {
+            return fprintf_s(out, "#include \"%s\"", item->as.pound_include.filename) >= 0;
+        }
+    }
+}
+
+// translation_unit ::= item*
+
+// item ::= function_decl
+//        | function_def
+//        | constant_decl
+//        | named_struct_or_union_decl
+//        | named_enum_decl
+//        | compiler_directive
+// constant_decl ::= type 'ident' '=' ( initializer_list | expression ) ';'
+// named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
+// named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
+struct Item *parse_item(struct Lexer *lxr)
+{
+    struct Item *item;
+    struct Type *type;
+
+    // First, try parsing a type.
+    if ((type = parse_type(lxr)))
+    {
+        // NAMED ENUM OR STRUCT DECLs begin with '{' after a Named{Struct,Enum}Ref.
+        if (lexer_accept(lxr, TOK_OPEN_BRACE))
+        {
+            // NAMED STRUCT DECL
+            if (type->tag == TYPE_NAMED_STRUCT_REF)
+            {
+                struct List members = parse_struct_member_list(lxr);
+                lexer_expect(lxr, TOK_CLOSE_BRACE);
+                lexer_expect(lxr, TOK_SEMI);
+
+                struct Item *item = malloc(sizeof(*item));
+                item->tag = ITEM_NAMED_STRUCT_DECL;
+                item->as.named_struct_decl.name = type->as.named.name;
+                item->as.named_struct_decl.members = members;
+
+                return item;
+            }
+
+            // NAMED ENUM DECL
+            if (type->tag == TYPE_NAMED_ENUM_REF)
+            {
+                struct List members = parse_enumerator_list(lxr);
+                lexer_expect(lxr, TOK_CLOSE_BRACE);
+                lexer_expect(lxr, TOK_SEMI);
+
+                struct Item *item = malloc(sizeof(*item));
+                item->tag = ITEM_NAMED_ENUM_DECL;
+                item->as.named_enum_decl.name = type->as.named.name;
+                item->as.named_enum_decl.members = members;
+
+                return item;
+            }
+
+            todo; // Report error.
+        }
+
+        // Either a FUNCTION DECL, FUNCTION DEF, or CONSTANT DECL/DEF.
+        if (lexer_accept(lxr, TOK_IDENT))
+        {
+            char *name = lxr->token;
+
+            // CONSTANT DEFINION
+            if (lexer_accept(lxr, TOK_EQUAL))
+            {
+                struct ConstantExpr *initializer;
+                if (!(initializer = parse_constant_expr(lxr)))
+                    todo; // Report error
+                lexer_expect(lxr, TOK_SEMI);
+
+                item = malloc(sizeof(*item));
+                item->tag = ITEM_CONSTANT_DECL;
+                item->as.constant_decl.type = type;
+                item->as.constant_decl.name = name;
+                item->as.constant_decl.initializer = initializer;
+
+                return item;
+            }
+
+            todo;
+        }
+    }
+
+    if ((item = parse_compiler_directive(lxr)))
+        return item;
+
+    return NULL;
+}
+
+// function_decl ::= type 'ident' '(' unnamed_parameter_list? ')' ';'
+
+// function_def ::= type 'ident' '(' parameter_list? ')' stmt_block
+
+// unnamed_parameter_list ::= type (',' type)* ','?
+
+// parameter_list ::= type 'ident' (',' type 'ident')* ','?
+
+// initializer_list ::= '{' '}' | '{' expression (',' expression)* ','? '}'
+
+// enumerator_list ::= <empty string>
+//                   | 'ident' (',' 'ident')* ','?
+struct List parse_enumerator_list(struct Lexer *lxr)
+{
+    struct List members = list_init();
+    char *member;
+
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        member = lxr->token;
+        list_push(&members, (void *)member);
+
+        if (!lexer_accept(lxr, TOK_COMMA))
+            return members;
+    }
+
+    return members;
+}
+
+// compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
+struct Item *parse_compiler_directive(struct Lexer *lxr)
+{
+    if (!lexer_accept(lxr, TOK_POUND))
+        return NULL;
+
+    if (!lexer_expect(lxr, TOK_INCLUDE))
+        return NULL;
+
+    if (!(lexer_accept(lxr, TOK_ANGLE_BRACK_FILENAME) || lexer_accept(lxr, TOK_LITERAL_STRING)))
+        return NULL;
+
+    struct Item *decl = malloc(sizeof(*decl));
+    decl->tag = ITEM_POUND_INCLUDE;
+    decl->as.pound_include.filename = lxr->token;
+
+    if (lxr->tok_tag == TOK_ANGLE_BRACK_FILENAME)
+        decl->as.pound_include.kind = POUND_INCLUDE_ANGLE_BRACKETS;
+    else
+        decl->as.pound_include.kind = POUND_INCLUDE_DOUBLE_QUOTES;
+
+    return decl;
 }
 
 // #-------------------------------------------------------------------------
@@ -1785,12 +1938,6 @@ struct Expr *parse_expression(struct Lexer *lxr)
     return parse_assignment_expression(lxr);
 }
 
-// ConstantExpression <- ConditionalExpression
-struct Expr *parse_constant_expression(struct Lexer *lxr)
-{
-    return parse_conditional_expression(lxr);
-}
-
 // #-------------------------------------------------------------------------
 // #  A.1.5  Constants
 // #-------------------------------------------------------------------------
@@ -1951,6 +2098,8 @@ void test_item(char *input)
 void test_parse_items()
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
+    test_item("  int my_const = 100;  ");
+    test_item("  cstr_arr names = { \"Jenn\", \"Tim\", \"Scott\", };  ");
     test_item("  struct EmptyStruct {};  ");
     test_item("  struct Point { int x; int y; };  ");
     test_item("  enum EmptyEnum {};  ");
