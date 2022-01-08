@@ -654,8 +654,6 @@ fn(bool display_item(FILE *out, struct Item *item))
     }
 }
 
-// translation_unit ::= item*
-
 // unnamed_parameter_list ::= type (',' type)* ','?
 fn(struct List parse_param_types(struct Lexer *lxr))
 {
@@ -694,6 +692,40 @@ fn(struct List parse_parameters(struct Lexer *lxr))
     }
 
     return params;
+}
+
+fndecl(struct Item *parse_item(struct Lexer *));
+
+// translation_unit ::= item*
+// Returns a `List` of `Item*`s.
+fn(struct List parse_translation_unit(struct Lexer *lxr))
+{
+    struct List items = list_init();
+    struct Item *item;
+
+    while ((item = parse_item(lxr)))
+        list_push(&items, item);
+
+    lexer_expect(lxr, TOK_END_OF_INPUT);
+
+    return items;
+}
+
+fn(bool display_translation_unit(FILE *out, struct List *translation_unit))
+{
+    struct ListNode *node = translation_unit->first;
+
+    while (node)
+    {
+        struct Item *item = (struct Item *)node->data;
+
+        if (!display_item(out, item))
+            return false;
+
+        node = node->next;
+    }
+
+    return true;
 }
 
 // item ::= function_decl
@@ -2291,6 +2323,23 @@ fn(void test_parse_items())
     test_item("  #include \"my_file.h\"  ");
 }
 
+fn(void test_translation_unit(char *input))
+{
+    struct Lexer lxr;
+    struct List translation_unit;
+
+    printf("\n");
+    lxr = lexer_init(input);
+    translation_unit = parse_translation_unit(&lxr);
+    display_translation_unit(stdout, &translation_unit);
+}
+
+fn(void test_parse_translation_unit())
+{
+    printf("\n\n----------------------TEST TRANSLATION UNITS-----------------");
+    test_translation_unit("#include <stdio.h> fn(int main()) {return 0;}");
+}
+
 fn(void test_parser())
 {
     printf("%s\n", "Running parser tests...");
@@ -2298,5 +2347,6 @@ fn(void test_parser())
     test_parse_types();
     test_parse_stmts();
     test_parse_items();
+    test_parse_translation_unit();
     printf("\n\n%s\n", "Tests finished!");
 }
