@@ -199,7 +199,7 @@ fn(bool expect_space(char *input, char **new_input))
         }
         else if (input[0] == '/' && input[1] == '/') // Comments
         {
-            while (*input != '\n' && *input != '\0')
+            while (*input != '\n' && *input != '\r' && *input != '\0')
             {
                 input++;
             }
@@ -403,7 +403,7 @@ fn(bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_tok
 // `lex` accepts a string, chomps the next token, and returns the token type AND
 // the new string position.
 // Returns `false` if at end of input, `true` otherwise.
-fn(bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input))
+fn(bool lex(char *input, int *out_tok_typ, char **out_token, bool *expecting_filename, char **new_input))
 {
     if (allow_whitespace(input, &input))
     {
@@ -421,10 +421,17 @@ fn(bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input))
         return true;
 
     if (lex_literal_string(input, out_tok_typ, out_token, new_input))
+    {
+        *expecting_filename = false; // We MAY HAVE parsed a filename.
         return true;
+    }
 
-    if (lex_angle_bracket_filename(input, out_tok_typ, out_token, new_input))
+    if (*expecting_filename &&
+        lex_angle_bracket_filename(input, out_tok_typ, out_token, new_input))
+    {
+        *expecting_filename = false; // We just parsed a filename.
         return true;
+    }
 
     if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
         return true;
@@ -523,7 +530,10 @@ fn(bool lex(char *input, int *out_tok_typ, char **out_token, char **new_input))
         return true;
 
     if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
+    {
+        *expecting_filename = true; // Transition state. Now we can parse `<asdf.h>` strings.
         return true;
+    }
 
     if (expect_keyword(input, "return", TOK_RETURN, out_tok_typ, old_input, new_input))
         return true;
@@ -601,6 +611,7 @@ struct Lexer
     char *token;              // The text of the current token (if relevent).
     char *next_token;         // The text of the next token (if relevent).
     char *input;              // A pointer to the current location in the source code.
+    bool expecting_filename;  // If we just lexed `include`, allow `<filename.h>` strings.
 };
 
 // Mutates global state of the lexer.
@@ -608,7 +619,8 @@ fn(bool lexer_advance(struct Lexer *lxr))
 {
     lxr->token = lxr->next_token;
     lxr->tok_tag = lxr->next_tok_tag;
-    lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token, &lxr->input);
+    lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token,
+        &lxr->expecting_filename, &lxr->input);
     return true;
 }
 
@@ -621,6 +633,7 @@ fn(struct Lexer lexer_init(char *new_input))
     lxr.token = NULL;
     lxr.next_token = NULL;
     lxr.input = new_input;
+    lxr.expecting_filename = false;
 
     lexer_advance(&lxr);
 
@@ -649,9 +662,10 @@ fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
     }
     else
     {
-        printf("UNEXPECTED TOKEN:\n\texpected %s, got %s\n",
+        printf("UNEXPECTED TOKEN:\n\texpected %s, got %s\ninput = `%.50s...`\n",
                tok_tag_names[tag],
-               tok_tag_names[lxr->next_tok_tag]);
+               tok_tag_names[lxr->next_tok_tag],
+               lxr->input);
         exit(1);
     }
 }
@@ -660,10 +674,11 @@ fn(void lex_all_input(char *input))
 {
     int out_tok_typ = -123214;
     char *token = "<EMPTY TOKEN>";
+    bool expecting_filename = false;
 
     do
     {
-        lex(input, &out_tok_typ, &token, &input);
+        lex(input, &out_tok_typ, &token, &expecting_filename, &input);
 
         dbg_tok_tag(stdout, out_tok_typ);
 

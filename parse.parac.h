@@ -383,6 +383,7 @@ struct ConstantExpr
     enum
     {
         CONST_INT,
+        CONST_BOOL,
         CONST_CSTR,
         CONST_ARRAY,
         CONST_IDENT,
@@ -391,6 +392,7 @@ struct ConstantExpr
     union
     {
         int const_int;
+        bool const_bool;
         char *const_cstr;
         struct List const_array; // A `List` of `ConstExpr*`s.
         char *const_ident;
@@ -433,6 +435,11 @@ fn(bool display_constant_expr(FILE *out, struct ConstantExpr *expr))
     {
     case CONST_INT:
         return fprintf_s(out, "%d", expr->as.const_int) >= 0;
+    case CONST_BOOL:
+        if (expr->as.const_bool)
+            return fprintf_s(out, "true") >= 0;
+        else
+            return fprintf_s(out, "false") >= 0;
     case CONST_CSTR:
         return fprintf_s(out, "\"%s\"", expr->as.const_cstr) >= 0;
     case CONST_ARRAY:
@@ -471,6 +478,16 @@ fn(struct ConstantExpr *parse_constant_expr(struct Lexer *lxr))
         expr = malloc(sizeof(*expr));
         expr->tag = CONST_INT;
         expr->as.const_int = atoi(lxr->token);
+        return expr;
+    }
+
+    if (lexer_accept(lxr, TOK_TRUE) || lexer_accept(lxr, TOK_FALSE))
+    {
+        bool value = lxr->tok_tag == TOK_TRUE;
+
+        expr = malloc(sizeof(*expr));
+        expr->tag = CONST_BOOL;
+        expr->as.const_bool = value;
         return expr;
     }
 
@@ -2239,7 +2256,11 @@ fn(void test_parse_exprs())
     test_expr("  sizeof(void)  ");
     test_expr("  (int) true ");
     test_expr("  1 + 2 - 3 + 4 ");
+    test_expr("  100 > 0 ");
     test_expr("  100 >= 0 ");
+    test_expr("  100 < 0 ");
+    test_expr("  100 < 0 || 100 > 0"); // Should parse expression, not ANGLE_BRACKET_FILENAME
+    test_expr("  100 <= 0 ");
     test_expr("  100 != 0 ");
     test_expr("  100 != 0 && -4 < -3  ");
     test_expr("  100 != 0 || -4 < -3  ");

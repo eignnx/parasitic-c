@@ -205,11 +205,11 @@ fn(struct List compile_file(char *filename, char *dir_root))
     // comp_log("[GOT INPUT]\n```\n");
     // comp_log(buf.buf);
     // comp_log("\n```\n");
-    // if (COMP_LOG)
-    // {
-    //     comp_log("[LEXING INPUT...]\n");
-    //     lex_all_input(buf.buf);
-    // }
+    if (COMP_LOG)
+    {
+        comp_log("[LEXING INPUT...]\n");
+        lex_all_input(buf.buf);
+    }
 
     comp_log("[PARSING INPUT...]\n");
     struct Lexer lxr = lexer_init(buf.buf);
@@ -265,6 +265,7 @@ fn(int main(int argc, char **argv))
         usage();
     else // argc == 2
         compile_project(&compiler, argv[1]);
+    // test();
 
     return 0;
 }
