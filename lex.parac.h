@@ -48,6 +48,8 @@ enum TokTag
     TOK_BOOL,
     TOK_VOID,
     TOK_CSTR_ARR,
+    TOK_FILE, // The `FILE` type.
+
     TOK_INCLUDE,
     TOK_RETURN,
     TOK_IF,
@@ -75,77 +77,81 @@ enum TokTag
 
     // Special
     TOK_END_OF_INPUT, // $
+    TOK_LEX_ERROR,
 };
 
 global(cstr_arr tok_tag_names) = {
     // SYMBOLS
-    "TOK_OPEN_PAREN",
-    "TOK_CLOSE_PAREN",
-    "TOK_OPEN_BRACE",
-    "TOK_CLOSE_BRACE",
-    "TOK_OPEN_BRACK",
-    "TOK_CLOSE_BRACK",
-    "TOK_POUND",
-    "TOK_SEMI",
-    "TOK_COLON",
-    "TOK_EQUAL",
-    "TOK_STAR",
-    "TOK_AMPERSAND",
-    "TOK_COMMA",       // ,
-    "TOK_DOT",         // .
-    "TOK_ARROW",       // ->
-    "TOK_PLUS_PLUS",   // ++
-    "TOK_EQUAL_EQUAL", // ==
-    "TOK_NOT_EQUAL",   // !=
-    "TOK_AND",         // &&
-    "TOK_OR",          // ||
-    "TOK_BANG",        // !
-    "TOK_GT",          // >
-    "TOK_GTE",         // >=
-    "TOK_LT",          // <
-    "TOK_LTE",         // <=
-    "TOK_PLUS",        // +
-    "TOK_MINUS",       // -
+    "symbol `(`",
+    "symbol `)`",
+    "symbol `{`",
+    "symbol `}`",
+    "symbol `[`",
+    "symbol `]`",
+    "symbol `#`",
+    "symbol `;`",
+    "symbol `:`",
+    "symbol `=`",
+    "symbol `*`",
+    "symbol `&`",
+    "symbol `,`",
+    "symbol `.`",
+    "symbol `->`",
+    "symbol `++`",
+    "symbol `==`",
+    "symbol `!=`",
+    "symbol `&&`",
+    "symbol `||`",
+    "symbol `!`",
+    "symbol `>`",
+    "symbol `>=`",
+    "symbol `<`",
+    "symbol `<=`",
+    "symbol `+`",
+    "symbol `-`",
 
     // LITERALS
-    "TOK_LITERAL_INT",
-    "TOK_LITERAL_CHAR",
-    "TOK_LITERAL_STRING",
-    "TOK_ANGLE_BRACK_FILENAME",
+    "integer literal",
+    "character literal",
+    "string literal",
+    "angle bracketed filename",
 
     // KEYWORDS
-    "TOK_INT",
-    "TOK_CHAR",
-    "TOK_BOOL",
-    "TOK_VOID",
-    "TOK_CSTR_ARR",
-    "TOK_INCLUDE",
-    "TOK_RETURN",
-    "TOK_IF",
-    "TOK_ELSE",
-    "TOK_WHILE",
-    "TOK_SWITCH",
-    "TOK_CASE",
-    "TOK_DEFAULT",
-    "TOK_BREAK",
-    "TOK_CONTINUE",
-    "TOK_TRUE",
-    "TOK_FALSE",
-    "TOK_SIZEOF",
-    "TOK_STRUCT",
-    "TOK_ENUM",
-    "TOK_UNION",
+    "keyword `int`",
+    "keyword `char`",
+    "keyword `bool`",
+    "keyword `void`",
+    "keyword `cstr_arr`",
+    "keyword `FILE`",
+
+    "keyword `include`",
+    "keyword `return`",
+    "keyword `if`",
+    "keyword `else`",
+    "keyword `while`",
+    "keyword `switch`",
+    "keyword `case`",
+    "keyword `default`",
+    "keyword `break`",
+    "keyword `continue`",
+    "keyword `true`",
+    "keyword `false`",
+    "keyword `sizeof`",
+    "keyword `struct`",
+    "keyword `enum`",
+    "keyword `union`",
 
     // CHEAT KEYWORDS
-    "TOK_FN",
-    "TOK_FNDECL",
-    "TOK_GLOBAL",
+    "keyword `fn`",
+    "keyword `fndecl`",
+    "keyword `global`",
 
     // IDENTIFIER
-    "TOK_IDENT",
+    "identifier",
 
     // Special
-    "TOK_END_OF_INPUT",
+    "<end of input>",
+    "<tokenization error>",
 };
 
 fndecl(void advance_lexer());
@@ -529,6 +535,9 @@ fn(bool lex(char *input, int *out_tok_typ, char **out_token, bool *expecting_fil
     if (expect_keyword(input, "cstr_arr", TOK_CSTR_ARR, out_tok_typ, old_input, new_input))
         return true;
 
+    if (expect_keyword(input, "FILE", TOK_FILE, out_tok_typ, old_input, new_input))
+        return true;
+
     if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
     {
         *expecting_filename = true; // Transition state. Now we can parse `<asdf.h>` strings.
@@ -613,12 +622,14 @@ struct Lexer
     char *token;              // The text of the current token (if relevent).
     char *next_token;         // The text of the next token (if relevent).
     char *input;              // A pointer to the current location in the source code.
+    char *old_input;          // A pointer to the location where the last token was lexed.
     bool expecting_filename;  // If we just lexed `include`, allow `<filename.h>` strings.
 };
 
-// Mutates global state of the lexer.
+// Mutates state of the lexer.
 fn(bool lexer_advance(struct Lexer *lxr))
 {
+    lxr->old_input = lxr->input;
     lxr->token = lxr->next_token;
     lxr->tok_tag = lxr->next_tok_tag;
     lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token,
@@ -626,17 +637,18 @@ fn(bool lexer_advance(struct Lexer *lxr))
     return true;
 }
 
-fn(struct Lexer lexer_init(char *filename, char *new_input))
+fn(struct Lexer lexer_init(char *filename, char *input))
 {
     struct Lexer lxr;
 
     lxr.filename = filename;
     lxr.line = 1;
-    lxr.tok_tag = -1;
-    lxr.next_tok_tag = -1;
+    lxr.tok_tag = TOK_LEX_ERROR;
+    lxr.next_tok_tag = TOK_LEX_ERROR;
     lxr.token = NULL;
     lxr.next_token = NULL;
-    lxr.input = new_input;
+    lxr.input = input;
+    lxr.old_input = input;
     lxr.expecting_filename = false;
 
     lexer_advance(&lxr);
@@ -666,19 +678,19 @@ fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
     }
     else
     {
-        printf("%s:%d - TOKENIZATION ERROR:\n\texpected %s, got %s\ninput = `%.50s...`\n",
+        printf("/ %s:%d - PARSE ERROR:\n|\n|   expected %s, got %s\n|\n\\   `%.40s`\n",
                lxr->filename,
                lxr->line,
                tok_tag_names[tag],
                tok_tag_names[lxr->next_tok_tag],
-               lxr->input);
+               lxr->old_input);
         exit(1);
     }
 }
 
 fn(void lex_all_input(char *input))
 {
-    int out_tok_typ = -123214;
+    int out_tok_typ = TOK_LEX_ERROR;
     char *token = "<EMPTY TOKEN>";
     bool expecting_filename = false;
 

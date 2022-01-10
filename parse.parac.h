@@ -105,6 +105,7 @@ struct Type
         TYPE_CHAR,
         TYPE_VOID,
         TYPE_CSTR_ARR,
+        TYPE_FILE,
 
         // Compound types
         TYPE_PTR,
@@ -156,6 +157,8 @@ fn(bool display_type(FILE *out, struct Type *type))
         return fprintf_s(out, "void") >= 0;
     case TYPE_CSTR_ARR:
         return fprintf_s(out, "cstr_arr") >= 0;
+    case TYPE_FILE:
+        return fprintf_s(out, "FILE") >= 0;
     case TYPE_PTR:
         return display_type(out, type->as.ptr.child) &&
                fprintf_s(out, "*") >= 0;
@@ -262,7 +265,8 @@ fn(struct Type *parse_direct_type(struct Lexer *lxr))
         lexer_accept(lxr, TOK_CHAR) ||
         lexer_accept(lxr, TOK_INT) ||
         lexer_accept(lxr, TOK_BOOL) ||
-        lexer_accept(lxr, TOK_CSTR_ARR))
+        lexer_accept(lxr, TOK_CSTR_ARR) ||
+        lexer_accept(lxr, TOK_FILE))
     {
         type = malloc(sizeof(*type));
 
@@ -282,6 +286,9 @@ fn(struct Type *parse_direct_type(struct Lexer *lxr))
             break;
         case TOK_CSTR_ARR:
             type->tag = TYPE_CSTR_ARR;
+            break;
+        case TOK_FILE:
+            type->tag = TYPE_FILE;
             break;
 
         default:
@@ -2288,7 +2295,7 @@ fn(void test_parse_types())
     test_type("  char  ");
     test_type("  void  ");
     test_type("  cstr_arr  ");
-    test_type("  cstr_arr  ");
+    test_type("  FILE*  ");
     test_type("  char**  ");
     test_type("  struct Expr  ");
     test_type("  enum Tag  ");
