@@ -124,9 +124,8 @@ fn(struct List all_included_parac_filenames(struct List *translation_unit))
     {
         struct Item *item = (struct Item *)node->data;
 
-        switch (item->tag)
+        if (item->tag == ITEM_POUND_INCLUDE)
         {
-        case ITEM_POUND_INCLUDE:
             char *filename = item->as.pound_include.filename;
             if (is_parac_file(filename))
             {
@@ -134,9 +133,6 @@ fn(struct List all_included_parac_filenames(struct List *translation_unit))
                 char *new_filename = remove_parac_extension(filename);
                 item->as.pound_include.filename = new_filename; // TODO: free the old string
             }
-
-        default:
-            int x = 1;
         }
 
         node = node->next;
