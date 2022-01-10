@@ -21,8 +21,10 @@ typedef char *cstr_arr[];
 
 // These are psuedo keywords that will be used in the defined language.
 #define fn(signature) signature
-#define fndecl(decl) decl
-#define global(signature) signature
+#define fndecl(signature) signature
+#define global(type_and_name) type_and_name
+// #define let(type_and_name) type_and_name
+// #define cast(type) (type)
 
 #ifdef _WIN32
 #define strdup _strdup
