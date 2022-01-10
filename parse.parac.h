@@ -2232,7 +2232,7 @@ fn(void test_expr(char *input))
     struct Expr *expr;
 
     printf("\n");
-    lxr = lexer_init(input);
+    lxr = lexer_init("<expr parse test>", input);
     if ((expr = parse_expression(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_expr(stdout, expr);
     else
@@ -2273,7 +2273,7 @@ fn(void test_type(char *input))
     struct Type *type;
 
     printf("\n");
-    lxr = lexer_init(input);
+    lxr = lexer_init("<type parse test>", input);
     if ((type = parse_type(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_type(stdout, type);
     else
@@ -2305,7 +2305,7 @@ fn(void test_stmt(char *input))
     struct Stmt *stmt;
 
     printf("\n");
-    lxr = lexer_init(input);
+    lxr = lexer_init("<stmt parse test>", input);
     if ((stmt = parse_stmt(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_stmt(stdout, stmt);
     else
@@ -2327,6 +2327,7 @@ fn(void test_parse_stmts())
     test_stmt("  return 123;  ");
     test_stmt("  return;  ");
     test_stmt("  int x;  ");
+    test_stmt("  FILE *f;  ");
     test_stmt("  int x = 123;  ");
     test_stmt("  launch_missiles(1, 2, 3);  ");
 }
@@ -2337,7 +2338,7 @@ fn(void test_item(char *input))
     struct Item *item;
 
     printf("\n");
-    lxr = lexer_init(input);
+    lxr = lexer_init("<item parse test>", input);
     if ((item = parse_item(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
         display_item(stdout, item);
     else
@@ -2368,7 +2369,7 @@ fn(void test_translation_unit(char *input))
     struct List translation_unit;
 
     printf("\n");
-    lxr = lexer_init(input);
+    lxr = lexer_init("<translation unit parse test>", input);
     translation_unit = parse_translation_unit(&lxr);
     display_translation_unit(stdout, &translation_unit);
 }

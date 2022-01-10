@@ -206,7 +206,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
     }
 
     comp_log("[PARSING INPUT...]\n");
-    struct Lexer lxr = lexer_init(buf.buf);
+    struct Lexer lxr = lexer_init(path, buf.buf);
     struct List tu = parse_translation_unit(&lxr);
     struct List included_parac_files = all_included_parac_filenames(&tu);
 

@@ -606,6 +606,8 @@ fn(bool lex(char *input, int *out_tok_typ, char **out_token, bool *expecting_fil
 
 struct Lexer
 {
+    char *filename;           // The name of the file being lexed.
+    int line;                 // The current line number.
     enum TokTag tok_tag;      // The TokTag of the current token.
     enum TokTag next_tok_tag; // The TokTag of the next token.
     char *token;              // The text of the current token (if relevent).
@@ -624,10 +626,12 @@ fn(bool lexer_advance(struct Lexer *lxr))
     return true;
 }
 
-fn(struct Lexer lexer_init(char *new_input))
+fn(struct Lexer lexer_init(char *filename, char *new_input))
 {
     struct Lexer lxr;
 
+    lxr.filename = filename;
+    lxr.line = 1;
     lxr.tok_tag = -1;
     lxr.next_tok_tag = -1;
     lxr.token = NULL;
@@ -662,7 +666,9 @@ fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
     }
     else
     {
-        printf("UNEXPECTED TOKEN:\n\texpected %s, got %s\ninput = `%.50s...`\n",
+        printf("%s:%d - TOKENIZATION ERROR:\n\texpected %s, got %s\ninput = `%.50s...`\n",
+               lxr->filename,
+               lxr->line,
                tok_tag_names[tag],
                tok_tag_names[lxr->next_tok_tag],
                lxr->input);
