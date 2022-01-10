@@ -98,7 +98,7 @@ struct Compiler
 };
 
 // From: https://stackoverflow.com/a/744822/9045161
-fn(bool endswith(const char *str, const char *suffix))
+fn(bool endswith(char *str, char *suffix))
 {
     if (!str || !suffix)
         return false;
