@@ -1,8 +1,7 @@
 // TODO: figure out a way to set compiler flags like this.
 // #define __STDC_WANT_LIB_EXT1__ 1 // Include `*_s` functions.
-#include <stdio.h>  // fprintf_s, stderr, fopen_s
-#include <stdlib.h> // exit, perror
-#define __STDC_WANT_LIB_EXT2__ 1
+#include <stdio.h>          // fprintf_s, stderr, fopen_s
+#include <stdlib.h>         // exit, perror
 #include <string.h>         // strrchr
 #include <stdbool.h>        // true, false
 #include "parse.parac.h"    // *
