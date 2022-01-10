@@ -1,11 +1,11 @@
 // TODO: figure out a way to set compiler flags like this.
 // #define __STDC_WANT_LIB_EXT1__ 1 // Include `*_s` functions.
-#include <stdio.h>    // fprintf_s, stderr, fopen_s
-#include <stdlib.h>   // exit, perror
-#include "parse.h"    // *
-#include "cheats.h"   // fn
-#include "cstr_buf.h" // struct CStrBuf, init_cstr_buf,
-                      // read_to_cstr_buf
+#include <stdio.h>          // fprintf_s, stderr, fopen_s
+#include <stdlib.h>         // exit, perror
+#include "parse.h.parac"    // *
+#include "cheats.h"         // fn
+#include "cstr_buf.h.parac" // struct CStrBuf, init_cstr_buf,
+                            // read_to_cstr_buf
 
 global(bool COMP_LOG) = false;
 
