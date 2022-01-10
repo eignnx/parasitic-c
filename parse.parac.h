@@ -1,6 +1,6 @@
 #include <stdio.h>     // fprintf_s, FILE, stdout
 #include <stdlib.h>    // atoi, malloc, free
-#include "lex.h.parac" // lex, lex_all_input
+#include "lex.parac.h" // lex, lex_all_input
 #include "cheats.h"    // todo, fn, fndecl, global
 
 // FORWARD DECLARATIONS
