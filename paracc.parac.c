@@ -120,8 +120,6 @@ fn(struct List all_included_parac_filenames(struct List *translation_unit))
     struct ListNode *node = translation_unit->first;
     struct List parac_filenames = list_init();
 
-    // TODO: Don't recompile already compiled files
-
     while (node)
     {
         struct Item *item = (struct Item *)node->data;
@@ -237,6 +235,8 @@ fn(void compile_project(struct Compiler *compiler, char *project_root))
     char *base_dir = dirname(project_root);
     char *project_root_basename = basename(project_root);
     list_push(&compiler->files_to_be_processed, (void *)project_root_basename);
+
+    // TODO: Don't recompile already compiled files
 
     while (compiler->files_to_be_processed.first != NULL)
     {
