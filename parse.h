@@ -16,7 +16,7 @@ struct ListNode
     struct ListNode *next;
 };
 
-struct List list_init()
+fn(struct List list_init())
 {
     struct List list;
     list.first = NULL;
