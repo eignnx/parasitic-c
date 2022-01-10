@@ -1,7 +1,8 @@
 #ifndef STD_PARAC_H
 #define STD_PARAC_H
 
-#include <stdio.h> // fprintf, stderr
+#include <stdio.h>  // fprintf, stderr
+#include <string.h> // _strdup
 
 // A file for putting temporary C code that can't be parsed
 // by the Parasitic C compiler. This file can be included as
@@ -22,5 +23,18 @@ typedef char *cstr_arr[];
 #define fn(signature) signature
 #define fndecl(decl) decl
 #define global(signature) signature
+
+#ifdef _WIN32
+#define strdup _strdup
+#endif
+
+inline char path_separator()
+{
+#ifdef _WIN32
+    return '\\';
+#else
+    return '/';
+#endif
+}
 
 #endif // STD_PARAC_H

@@ -42,6 +42,24 @@ fn(void list_push(struct List *list, void *data))
     }
 }
 
+fn(bool list_is_empty(struct List *list))
+{
+    return list->first == NULL;
+}
+
+fn(void *list_pop_front(struct List *list))
+{
+    if (list_is_empty(list))
+        return NULL;
+
+    void *data = list->first->data;
+    list->first = list->first->next;
+    if (list->first == NULL)
+        list->last = NULL;
+    // TODO: free the ListNode we just popped
+    return data;
+}
+
 // #-------------------------------------------------------------------------
 // #  Types
 // #-------------------------------------------------------------------------
