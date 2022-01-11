@@ -3,7 +3,7 @@
 #include "../cheats.h"
 #include "goodbye_world.parac.h"
 
-fn(void main())
+fn(int main())
 {
     printf("Hello, World!\n");
 
