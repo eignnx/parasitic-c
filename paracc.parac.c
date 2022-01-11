@@ -33,9 +33,6 @@ fn(void usage())
     exit(1);
 }
 
-global(int AVG_LINE_LEN) = 40;
-global(int AVG_FILE_LINES) = 500;
-
 fn(void comp_log(char *msg))
 {
     if (!COMP_LOG)
@@ -191,7 +188,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
         exit(1);
     }
 
-    struct CStrBuf buf = init_cstr_buf(AVG_LINE_LEN * AVG_FILE_LINES);
+    struct CStrBuf buf = init_cstr_buf();
 
     comp_log("[READING FILE TO STRING...]\n");
     read_to_cstr_buf(f, &buf);
@@ -199,11 +196,12 @@ fn(struct List compile_file(char *filename, char *dir_root))
     // comp_log("[GOT INPUT]\n```\n");
     // comp_log(buf.buf);
     // comp_log("\n```\n");
-    if (COMP_LOG)
-    {
-        comp_log("[LEXING INPUT...]\n");
-        lex_all_input(buf.buf);
-    }
+
+    // if (COMP_LOG)
+    // {
+    //     comp_log("[LEXING INPUT...]\n");
+    //     lex_all_input(buf.buf);
+    // }
 
     comp_log("[PARSING INPUT...]\n");
     struct Lexer lxr = lexer_init(path, buf.buf);
