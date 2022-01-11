@@ -694,7 +694,7 @@ fn(void lex_all_input(char *input))
     char *token = "<EMPTY TOKEN>";
     bool expecting_filename = false;
 
-    do
+    while (true)
     {
         lex(input, &out_tok_typ, &token, &expecting_filename, &input);
 
@@ -708,7 +708,10 @@ fn(void lex_all_input(char *input))
             printf("\n\t\"%s\"", token);
 
         printf("\n");
-    } while (out_tok_typ != TOK_END_OF_INPUT);
+
+        if (out_tok_typ == TOK_END_OF_INPUT)
+            break;
+    }
 }
 
 fn(void test_lexer())
