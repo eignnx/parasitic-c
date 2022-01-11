@@ -5,17 +5,18 @@
 
 struct CStrBuf
 {
-    int len;
     int cap;
+    int nbytes; // The number of non-null bytes stored in `buf`.
     char *buf;
 };
 
-fn(struct CStrBuf init_cstr_buf(int initial_cap))
+global(int INITIAL_CSTR_BUF_CAP) = 64;
+
+fn(struct CStrBuf init_cstr_buf())
 {
     struct CStrBuf s;
-    s.cap = initial_cap;
-    s.len = 0;
-    s.buf = (char *)malloc(initial_cap);
+    s.cap = INITIAL_CSTR_BUF_CAP;
+    s.buf = (char *)malloc(s.cap);
 
     if (s.buf == NULL)
     {
@@ -23,35 +24,50 @@ fn(struct CStrBuf init_cstr_buf(int initial_cap))
         exit(1);
     }
 
+    // Add null byte so that `s.buf` can be printed as the empty string.
+    s.buf[0] = '\0';
+    s.nbytes = 1;
+
     return s;
 }
 
-fn(void cstr_buf_realloc_if_full(struct CStrBuf *buf))
+fn(void cstr_buf_realloc_if_full(struct CStrBuf *s))
 {
-    if (buf->len >= buf->cap)
+    int space_available = s->cap - s->nbytes;
+    if (space_available <= 0)
     {
-        buf->buf = (char *)realloc(buf->buf, buf->cap * 2);
-        if (buf->buf == NULL)
+        int new_cap = s->cap + s->cap;
+        s->buf = (char *)realloc(s->buf, new_cap);
+        if (s->buf == NULL)
         {
             perror("Could not realloc CStrBuf");
             exit(1);
         }
+        s->cap = new_cap;
     }
 }
 
-fn(void read_to_cstr_buf(FILE *f, struct CStrBuf *buf))
+fn(void read_to_cstr_buf(FILE *f, struct CStrBuf *s))
 {
     while (!feof(f))
     {
-        cstr_buf_realloc_if_full(buf);
+        cstr_buf_realloc_if_full(s);
 
-        char *line = fgets(buf->buf + buf->len, buf->cap - buf->len, f);
-        buf->len = buf->len + strnlen_s(buf->buf + buf->len, buf->cap - buf->len);
-
+        // TODO: optimize this so that `strlen` doesn't need to be called.
+        char *write_here = s->buf + strnlen_s(s->buf, s->cap);
+        int space_available = s->cap - s->nbytes;
+        char *line = fgets(write_here, space_available, f);
         if (line == NULL && !feof(f))
         {
             perror("Error reading to CStrBuf");
             exit(1);
         }
+        if (line == NULL)
+            return;
+
+        int line_len = strnlen_s(line, space_available);
+        s->nbytes = s->nbytes +
+                    line_len +
+                    sizeof((char)'\0');
     }
 }
