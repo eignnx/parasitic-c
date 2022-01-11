@@ -2163,7 +2163,8 @@ fn(struct Expr *parse_conditional_expression(struct Lexer *lxr))
 //                         | '(' type_name ')'
 fn(struct Expr *parse_assignment_expression(struct Lexer *lxr))
 {
-    struct Expr *unary, *assignment;
+    struct Expr *unary;
+    struct Expr *assignment;
 
     {
         struct Lexer saved_lxr = *lxr; // HACK: backtracking hack
