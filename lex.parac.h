@@ -273,7 +273,7 @@ fn(bool expect_keyword(
 {
     if (starts_with(input, expected_kw, &input))
     {
-        if (!isalnum(*input))
+        if (!isalnum(*input) && *input != '_')
         {
             *new_input = input;
             *out_tok_typ = expected_tok_typ;
