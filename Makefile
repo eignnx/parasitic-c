@@ -45,6 +45,7 @@ bootstrap/paracc-from-c.exe: paracc.parac.c parse.parac.h lex.parac.h cstr_buf.p
 
 clean:
 	$(RMDIR) tgt
+	$(RMDIR) bootstrap
 
 ifeq ($(OS),Windows_NT)
     RM = cmd /C del /Q /F
