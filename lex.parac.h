@@ -229,12 +229,11 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
         if (*lxr->input == '\0')
             break;
 
-        if (*lxr->input == '\n')
-            lxr->line++;
-
         if (isspace(*lxr->input))
         {
             found_space = true;
+            if (*lxr->input == '\n')
+                lxr->line++;
             lxr->input++;
             continue;
         }
@@ -249,7 +248,10 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
                 lxr->input++;
 
             if (*lxr->input == '\n')
+            {
                 lxr->line++;
+                lxr->input++;
+            }
 
             continue;
         }
@@ -708,6 +710,7 @@ fn(void lex_all_input(char *input))
 
     while (true)
     {
+        lexer_advance(&lxr);
         dbg_tok_tag(stdout, lxr.tok_tag);
 
         if (lxr.tok_tag == TOK_IDENT ||
@@ -721,8 +724,6 @@ fn(void lex_all_input(char *input))
 
         if (lxr.tok_tag == TOK_END_OF_INPUT)
             break;
-
-        lexer_advance(&lxr);
     }
 }
 
@@ -741,5 +742,5 @@ fn(void test_lexer())
     test_lex("  false");
     test_lex("  #include <stdio.h>  ");
     test_lex("  #include \"stdio.h\"  ");
-    test_lex("  no_comment_after // commenntttttt! \n  ");
+    test_lex("  default // comment\n // blah\n default\n\n default  ");
 }
