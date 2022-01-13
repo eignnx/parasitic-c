@@ -167,7 +167,7 @@ struct Lexer
     bool expecting_filename;  // If we just lexed `include`, allow `<filename.h>` strings.
 };
 
-fndecl(void lexer_advance(struct Lexer *lxr));
+fndecl(void lexer_advance(struct Lexer *));
 
 fn(struct Lexer lexer_init(char *filename, char *input))
 {
@@ -198,7 +198,7 @@ fn(bool lexer_starts_with(struct Lexer *lxr, char *target))
         if (target[i] == '\0')
         {
             lxr->input = lxr->input + i;
-            lxr->line += lines;
+            lxr->line = lxr->line + lines;
             return true;
         }
 
@@ -227,9 +227,7 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
     while (true)
     {
         if (*lxr->input == '\0')
-        {
             break;
-        }
 
         if (*lxr->input == '\n')
             lxr->line++;
@@ -238,21 +236,25 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
         {
             found_space = true;
             lxr->input++;
+            continue;
         }
-        else if (lxr->input[0] == '/' && lxr->input[1] == '/') // Comments
+
+        if (lxr->input[0] == '/' && lxr->input[1] == '/') // Comments
         {
-            while (*lxr->input != '\n' && *lxr->input != '\r' && *lxr->input != '\0')
-            {
+            // Skip the slashes.
+            lxr->input++;
+            lxr->input++;
+
+            while (*lxr->input != '\n' && *lxr->input != '\0')
                 lxr->input++;
-            }
 
             if (*lxr->input == '\n')
                 lxr->line++;
+
+            continue;
         }
-        else
-        {
-            break;
-        }
+
+        break;
     }
 
     return found_space || *lxr->input == '\0';
@@ -277,33 +279,35 @@ fn(bool lexer_accept_ident(struct Lexer *lxr))
             i++;
         }
         lxr->next_tok_tag = TOK_IDENT;
-        lxr->input = lxr->input + i;
         lxr->next_token = malloc(i + 1); // Add 1 for the '\0'.
         strncpy_s(lxr->next_token, i + 1, ident_start, i);
+        lxr->input = lxr->input + i;
         return true;
     }
 
     return false;
 }
 
-fn(bool lexer_accept_symbol(struct Lexer *lxr, char *expected_symbol, enum TokTag expected_tok_typ))
+fn(bool lexer_accept_symbol(struct Lexer *lxr, char *expected_symbol, enum TokTag expected_tok_tag))
 {
     if (lexer_starts_with(lxr, expected_symbol))
     {
-        lxr->next_tok_tag = expected_tok_typ;
+        lxr->next_tok_tag = expected_tok_tag;
+        lxr->next_token = NULL; // The token text is not needed.
         return true;
     }
     return false;
 }
 
-fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag expected_tok_typ))
+fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag expected_tok_tag))
 {
     char *old_input = lxr->input;
     if (lexer_starts_with(lxr, expected_kw))
     {
         if (!isalnum(lxr->input[0]) && lxr->input[0] != '_')
         {
-            lxr->next_tok_tag = expected_tok_typ;
+            lxr->next_tok_tag = expected_tok_tag;
+            lxr->next_token = NULL; // The token text is not needed.
             return true;
         }
         else
@@ -317,8 +321,11 @@ fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag e
             return false;
         }
     }
-    lxr->input = old_input;
-    return false;
+    else
+    {
+        lxr->input = old_input;
+        return false;
+    }
 }
 
 fn(bool lexer_accept_literal_int(struct Lexer *lxr))

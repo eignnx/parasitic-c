@@ -1950,7 +1950,8 @@ fn(struct Expr *parse_additive_expression(struct Lexer *lxr))
 
         if (!(y = parse_multiplicative_expression(lxr)))
         {
-            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
+            fprintf_s(stderr, "PARSE ERROR: %s:%d\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "| expected expression after `%s`, got nothing\n", tok_tag_names[op]);
             exit(1);
         }
 
