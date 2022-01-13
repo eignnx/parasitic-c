@@ -154,465 +154,6 @@ global(cstr_arr tok_tag_names) = {
     "<tokenization error>",
 };
 
-fndecl(void advance_lexer());
-
-fn(int dbg_tok_tag(FILE *out, int tok_tag))
-{
-    return fprintf_s(out, "TOKEN %s", tok_tag_names[tok_tag]);
-}
-
-fn(bool starts_with(char *input, char *target, char **new_input))
-{
-    int i = 0;
-    while (true)
-    {
-        if (target[i] == '\0')
-        {
-            *new_input = input + i;
-            return true;
-        }
-
-        if (input[i] != target[i])
-        {
-            *new_input = input;
-            return false;
-        }
-
-        i++;
-    }
-    return false; // unreachable
-}
-
-// EXAMPLES:
-// "   \t\n   qwerty" --> true
-// "     " --> true
-// "qwerty" --> false
-// "" --> true (OK because EOF is fine)
-fn(bool expect_space(char *input, char **new_input))
-{
-    bool found_space = false;
-
-    while (true)
-    {
-        if (*input == '\0')
-        {
-            break;
-        }
-        else if (isspace(*input))
-        {
-            found_space = true;
-            input++;
-        }
-        else if (input[0] == '/' && input[1] == '/') // Comments
-        {
-            while (*input != '\n' && *input != '\r' && *input != '\0')
-            {
-                input++;
-            }
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    *new_input = input;
-    return found_space || *input == '\0';
-}
-
-// Returns `true` if at end of input.
-fn(bool allow_whitespace(char *input, char **new_input))
-{
-    expect_space(input, new_input);
-    return **new_input == '\0';
-}
-
-fn(bool expect_ident(char *input, char **new_input, char **out_ident))
-{
-    char *old_input = input;
-    int i = 0;
-    if (isalpha(input[i]) || input[i] == '_')
-    {
-        i++;
-        while (isalnum(input[i]) || input[i] == '_')
-        {
-            i++;
-        }
-        *new_input = &input[i];
-        *out_ident = malloc(i + 1); // Add 1 for the '\0'.
-        strncpy_s(*out_ident, i + 1, old_input, i);
-        return true;
-    }
-    *new_input = old_input;
-    return false;
-}
-
-fn(bool expect_symbol(
-    char *input,
-    char *expected_symbol,
-    int expected_tok_typ,
-    int *out_tok_typ,
-    char **new_input))
-{
-    if (starts_with(input, expected_symbol, &input))
-    {
-        *out_tok_typ = expected_tok_typ;
-        *new_input = input;
-        return true;
-    }
-    return false;
-}
-
-fn(bool expect_keyword(
-    char *input,
-    char *expected_kw,
-    int expected_tok_typ,
-    int *out_tok_typ,
-    char *old_input,
-    char **new_input))
-{
-    if (starts_with(input, expected_kw, &input))
-    {
-        if (!isalnum(*input) && *input != '_')
-        {
-            *new_input = input;
-            *out_tok_typ = expected_tok_typ;
-            return true;
-        }
-        else
-        {
-            // `*input` IS alphanumeric, so `expected_kw` is a strict subsequence of
-            // `old_input`.
-            // EXAMPLE:
-            //   old_input   = "javascript";
-            //   expected_kw = "java";
-            *new_input = old_input;
-            return false;
-        }
-    }
-    *new_input = old_input;
-    return false;
-}
-
-fn(bool lex_literal_int(char *input, int *out_tok_typ, char **out_token, char **new_input))
-{
-    int i = 0;
-
-    if (input[i] == '-')
-        i++;
-
-    while (isdigit(input[i]))
-        i++;
-
-    if (i > 1 || (i == 1 && input[0] != '-'))
-    {
-        *new_input = &input[i];
-        *out_token = malloc(i + 1); // Need extra space for '\0'.
-        *out_tok_typ = TOK_LITERAL_INT;
-        strncpy_s(*out_token, i + 1, input, i);
-        return true;
-    }
-    else
-    {
-        *new_input = input;
-        return false;
-    }
-}
-
-fn(bool lex_literal_char(char *input, int *out_tok_typ, char **out_token, char **new_input))
-{
-    *new_input = input;
-    int i = 0;
-
-    if (input[i] != '\'') // Start quote mark.
-        return false;
-    i++;
-
-    if (input[i] == '\\') // Allow a backslash, but just copy it on through.
-        i++;
-
-    i++; // Advance past the character.
-
-    if (input[i] != '\'') // End quote mark.
-        return false;
-    i++;
-
-    *out_tok_typ = TOK_LITERAL_CHAR;
-    *out_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
-    *new_input = &input[i];
-    strncpy_s(*out_token, i + 1 - 2, &input[1], i - 2);
-    return true;
-}
-
-fn(bool lex_literal_string(char *input, int *out_tok_typ, char **out_token, char **new_input))
-{
-    *new_input = input;
-    int i = 0;
-
-    if (input[i] != '"') // Start quote mark.
-        return false;
-    i++;
-
-    while (input[i] != '"' && input[i] != '\0')
-    {
-        if (input[i] == '\\')
-        {
-            i++;
-            if (input[i] == '\0') // In case there's a backslash at the EOF.
-            {
-                return false;
-            }
-        }
-        i++;
-    }
-
-    if (input[i] != '"') // End quote mark.
-        return false;
-    i++;
-
-    *out_tok_typ = TOK_LITERAL_STRING;
-    *out_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
-    *new_input = &input[i];
-    strncpy_s(*out_token, i + 1 - 2, &input[1], i - 2);
-    return true;
-}
-
-fn(bool lex_angle_bracket_filename(char *input, int *out_tok_typ, char **out_token, char **new_input))
-{
-    *new_input = input;
-    int i = 0;
-
-    if (input[i] != '<') // Start marker.
-        return false;
-    i++;
-
-    while (input[i] != '>' && input[i] != '\0')
-    {
-        if (input[i] == '\\')
-        {
-            return false;
-        }
-        i++;
-    }
-
-    if (input[i] != '>') // End marker.
-        return false;
-    i++;
-
-    *out_tok_typ = TOK_ANGLE_BRACK_FILENAME;
-    *out_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
-    *new_input = &input[i];
-    strncpy_s(*out_token, i + 1 - 2, &input[1], i - 2);
-    return true;
-}
-
-// `lex` accepts a string, chomps the next token, and returns the token type AND
-// the new string position.
-// Returns `false` if at end of input, `true` otherwise.
-fn(bool lex(char *input, int *out_tok_typ, char **out_token, bool *expecting_filename, char **new_input))
-{
-    if (allow_whitespace(input, &input))
-    {
-        *new_input = input;
-        *out_tok_typ = TOK_END_OF_INPUT;
-        return false;
-    }
-
-    char *old_input = input;
-
-    if (lex_literal_int(input, out_tok_typ, out_token, new_input))
-        return true;
-
-    if (lex_literal_char(input, out_tok_typ, out_token, new_input))
-        return true;
-
-    if (lex_literal_string(input, out_tok_typ, out_token, new_input))
-    {
-        *expecting_filename = false; // We MAY HAVE parsed a filename.
-        return true;
-    }
-
-    if (*expecting_filename &&
-        lex_angle_bracket_filename(input, out_tok_typ, out_token, new_input))
-    {
-        *expecting_filename = false; // We just parsed a filename.
-        return true;
-    }
-
-    if (expect_symbol(input, "(", TOK_OPEN_PAREN, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ")", TOK_CLOSE_PAREN, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "{", TOK_OPEN_BRACE, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "}", TOK_CLOSE_BRACE, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "[", TOK_OPEN_BRACK, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "]", TOK_CLOSE_BRACK, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "#", TOK_POUND, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ";", TOK_SEMI, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ":", TOK_COLON, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "==", TOK_EQUAL_EQUAL, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "=", TOK_EQUAL, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "*", TOK_STAR, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "&&", TOK_AND, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "&", TOK_AMPERSAND, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ",", TOK_COMMA, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ".", TOK_DOT, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "->", TOK_ARROW, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "++", TOK_PLUS_PLUS, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "!=", TOK_NOT_EQUAL, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "||", TOK_OR, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "!", TOK_BANG, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ">=", TOK_GTE, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, ">", TOK_GT, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "<=", TOK_LTE, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "<", TOK_LT, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "+", TOK_PLUS, out_tok_typ, new_input))
-        return true;
-
-    if (expect_symbol(input, "-", TOK_MINUS, out_tok_typ, new_input))
-        return true;
-
-    if (expect_keyword(input, "int", TOK_INT, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "char", TOK_CHAR, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "bool", TOK_BOOL, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "void", TOK_VOID, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "cstr_arr", TOK_CSTR_ARR, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "FILE", TOK_FILE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "include", TOK_INCLUDE, out_tok_typ, old_input, new_input))
-    {
-        *expecting_filename = true; // Transition state. Now we can parse `<asdf.h>` strings.
-        return true;
-    }
-
-    if (expect_keyword(input, "return", TOK_RETURN, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "if", TOK_IF, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "else", TOK_ELSE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "while", TOK_WHILE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "switch", TOK_SWITCH, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "case", TOK_CASE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "default", TOK_DEFAULT, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "break", TOK_BREAK, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "continue", TOK_CONTINUE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "true", TOK_TRUE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "false", TOK_FALSE, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "sizeof", TOK_SIZEOF, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "struct", TOK_STRUCT, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "enum", TOK_ENUM, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "union", TOK_UNION, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "fndecl", TOK_FNDECL, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "fn", TOK_FN, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_keyword(input, "global", TOK_GLOBAL, out_tok_typ, old_input, new_input))
-        return true;
-
-    if (expect_ident(input, &input, out_token))
-    {
-        *out_tok_typ = TOK_IDENT;
-        *new_input = input;
-        return true;
-    }
-
-    // Fallthrough
-    perror("LEX ERROR");
-    printf("\tUnrecognized token starting with '%c'", input[0]);
-    exit(1);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 struct Lexer
 {
     char *filename;           // The name of the file being lexed.
@@ -626,16 +167,7 @@ struct Lexer
     bool expecting_filename;  // If we just lexed `include`, allow `<filename.h>` strings.
 };
 
-// Mutates state of the lexer.
-fn(bool lexer_advance(struct Lexer *lxr))
-{
-    lxr->old_input = lxr->input;
-    lxr->token = lxr->next_token;
-    lxr->tok_tag = lxr->next_tok_tag;
-    lex(lxr->input, &lxr->next_tok_tag, &lxr->next_token,
-        &lxr->expecting_filename, &lxr->input);
-    return true;
-}
+fndecl(void lexer_advance(struct Lexer *lxr));
 
 fn(struct Lexer lexer_init(char *filename, char *input))
 {
@@ -656,7 +188,447 @@ fn(struct Lexer lexer_init(char *filename, char *input))
     return lxr;
 }
 
-// Advanced lexer input if the token tag matches.
+fn(bool lexer_starts_with(struct Lexer *lxr, char *target))
+{
+    int i = 0;
+    while (true)
+    {
+        if (target[i] == '\0')
+        {
+            lxr->input = lxr->input + i;
+            return true;
+        }
+
+        if (lxr->input[i] != target[i])
+        {
+            return false;
+        }
+
+        i++;
+    }
+    return false; // unreachable
+}
+
+// EXAMPLES:
+// "   \t\n   qwerty" --> true
+// "     " --> true
+// "qwerty" --> false
+// "" --> true (OK because EOF is fine)
+fn(bool lexer_accept_space(struct Lexer *lxr))
+{
+    bool found_space = false;
+
+    while (true)
+    {
+        if (*lxr->input == '\0')
+        {
+            break;
+        }
+        else if (isspace(*lxr->input))
+        {
+            found_space = true;
+            lxr->input++;
+        }
+        else if (lxr->input[0] == '/' && lxr->input[1] == '/') // Comments
+        {
+            while (*lxr->input != '\n' && *lxr->input != '\r' && *lxr->input != '\0')
+            {
+                lxr->input++;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return found_space || *lxr->input == '\0';
+}
+
+// Returns `true` if at end of input.
+fn(bool lexer_allow_whitespace(struct Lexer *lxr))
+{
+    lexer_accept_space(lxr);
+    return *lxr->input == '\0';
+}
+
+fn(bool lexer_accept_ident(struct Lexer *lxr))
+{
+    char *ident_start = lxr->input;
+    int i = 0;
+    if (isalpha(lxr->input[i]) || lxr->input[i] == '_')
+    {
+        i++;
+        while (isalnum(lxr->input[i]) || lxr->input[i] == '_')
+        {
+            i++;
+        }
+        lxr->next_tok_tag = TOK_IDENT;
+        lxr->input = lxr->input + i;
+        lxr->next_token = malloc(i + 1); // Add 1 for the '\0'.
+        strncpy_s(lxr->next_token, i + 1, ident_start, i);
+        return true;
+    }
+
+    return false;
+}
+
+fn(bool lexer_accept_symbol(struct Lexer *lxr, char *expected_symbol, enum TokTag expected_tok_typ))
+{
+    if (lexer_starts_with(lxr, expected_symbol))
+    {
+        lxr->next_tok_tag = expected_tok_typ;
+        return true;
+    }
+    return false;
+}
+
+fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag expected_tok_typ))
+{
+    char *old_input = lxr->input;
+    if (lexer_starts_with(lxr, expected_kw))
+    {
+        if (!isalnum(lxr->input[0]) && lxr->input[0] != '_')
+        {
+            lxr->next_tok_tag = expected_tok_typ;
+            return true;
+        }
+        else
+        {
+            // `*input` IS alphanumeric, so `expected_kw` is a strict subsequence of
+            // `old_input`.
+            // EXAMPLE:
+            //   old_input   = "javascript";
+            //   expected_kw = "java";
+            lxr->input = old_input;
+            return false;
+        }
+    }
+    lxr->input = old_input;
+    return false;
+}
+
+fn(bool lexer_accept_literal_int(struct Lexer *lxr))
+{
+    int i = 0;
+
+    if (lxr->input[i] == '-')
+        i++;
+
+    while (isdigit(lxr->input[i]))
+        i++;
+
+    if (i > 1 || (i == 1 && lxr->input[0] != '-'))
+    {
+        lxr->next_tok_tag = TOK_LITERAL_INT;
+        lxr->next_token = malloc(i + 1); // Need extra space for '\0'.
+        strncpy_s(lxr->next_token, i + 1, lxr->input, i);
+        lxr->input = lxr->input + i;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+fn(bool lexer_accept_literal_char(struct Lexer *lxr))
+{
+    int i = 0;
+
+    if (lxr->input[i] != '\'') // Start quote mark.
+        return false;
+    i++;
+
+    if (lxr->input[i] == '\\') // Allow a backslash, but just copy it on through.
+        i++;
+
+    i++; // Advance past the character.
+
+    if (lxr->input[i] != '\'') // End quote mark.
+        return false;
+    i++;
+
+    lxr->next_tok_tag = TOK_LITERAL_CHAR;
+    lxr->next_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
+    strncpy_s(lxr->next_token, i + 1 - 2, &lxr->input[1], i - 2);
+    lxr->input = lxr->input + i;
+    return true;
+}
+
+fn(bool lexer_accept_literal_string(struct Lexer *lxr))
+{
+    int i = 0;
+
+    if (lxr->input[i] != '"') // Start quote mark.
+        return false;
+    i++;
+
+    while (lxr->input[i] != '"' && lxr->input[i] != '\0')
+    {
+        if (lxr->input[i] == '\\')
+        {
+            i++;
+            if (lxr->input[i] == '\0') // In case there's a backslash at the EOF.
+            {
+                return false;
+            }
+        }
+        i++;
+    }
+
+    if (lxr->input[i] != '"') // End quote mark.
+        return false;
+    i++;
+
+    lxr->next_tok_tag = TOK_LITERAL_STRING;
+    lxr->next_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
+    strncpy_s(lxr->next_token, i + 1 - 2, &lxr->input[1], i - 2);
+    lxr->input = lxr->input + i;
+    return true;
+}
+
+fn(bool lexer_accept_angle_bracket_filename(struct Lexer *lxr))
+{
+    int i = 0;
+
+    if (lxr->input[i] != '<') // Start quote mark.
+        return false;
+    i++;
+
+    while (lxr->input[i] != '>' && lxr->input[i] != '\0')
+    {
+        if (lxr->input[i] == '\\')
+        {
+            i++;
+            if (lxr->input[i] == '\0') // In case there's a backslash at the EOF.
+            {
+                return false;
+            }
+        }
+        i++;
+    }
+
+    if (lxr->input[i] != '>') // End quote mark.
+        return false;
+    i++;
+
+    lxr->next_tok_tag = TOK_ANGLE_BRACK_FILENAME;
+    lxr->next_token = malloc(i + 1 - 2); // Add 1 for the '\0', subtract 2 to drop quotes.
+    strncpy_s(lxr->next_token, i + 1 - 2, &lxr->input[1], i - 2);
+    lxr->input = lxr->input + i;
+    return true;
+}
+
+// Returns `false` if at end of input, `true` otherwise.
+fn(bool lex(struct Lexer *lxr))
+{
+    if (lexer_allow_whitespace(lxr))
+    {
+        lxr->next_tok_tag = TOK_END_OF_INPUT;
+        return false;
+    }
+
+    if (lexer_accept_literal_int(lxr))
+        return true;
+
+    if (lexer_accept_literal_char(lxr))
+        return true;
+
+    if (lexer_accept_literal_string(lxr))
+    {
+        lxr->expecting_filename = false; // We MAY HAVE parsed a filename.
+        return true;
+    }
+
+    if (lxr->expecting_filename && lexer_accept_angle_bracket_filename(lxr))
+    {
+        lxr->expecting_filename = false; // We just parsed a filename.
+        return true;
+    }
+
+    if (lexer_accept_symbol(lxr, "(", TOK_OPEN_PAREN))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ")", TOK_CLOSE_PAREN))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "{", TOK_OPEN_BRACE))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "}", TOK_CLOSE_BRACE))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "[", TOK_OPEN_BRACK))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "]", TOK_CLOSE_BRACK))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "#", TOK_POUND))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ";", TOK_SEMI))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ":", TOK_COLON))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "==", TOK_EQUAL_EQUAL))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "=", TOK_EQUAL))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "*", TOK_STAR))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "&&", TOK_AND))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "&", TOK_AMPERSAND))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ",", TOK_COMMA))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ".", TOK_DOT))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "->", TOK_ARROW))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "++", TOK_PLUS_PLUS))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "!=", TOK_NOT_EQUAL))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "||", TOK_OR))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "!", TOK_BANG))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ">=", TOK_GTE))
+        return true;
+
+    if (lexer_accept_symbol(lxr, ">", TOK_GT))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "<=", TOK_LTE))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "<", TOK_LT))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "+", TOK_PLUS))
+        return true;
+
+    if (lexer_accept_symbol(lxr, "-", TOK_MINUS))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "int", TOK_INT))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "char", TOK_CHAR))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "bool", TOK_BOOL))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "void", TOK_VOID))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "cstr_arr", TOK_CSTR_ARR))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "FILE", TOK_FILE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "include", TOK_INCLUDE))
+    {
+        lxr->expecting_filename = true; // Transition state. Now we can parse `<asdf.h>` strings.
+        return true;
+    }
+
+    if (lexer_accept_keyword(lxr, "return", TOK_RETURN))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "if", TOK_IF))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "else", TOK_ELSE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "while", TOK_WHILE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "switch", TOK_SWITCH))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "case", TOK_CASE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "default", TOK_DEFAULT))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "break", TOK_BREAK))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "continue", TOK_CONTINUE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "true", TOK_TRUE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "false", TOK_FALSE))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "sizeof", TOK_SIZEOF))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "struct", TOK_STRUCT))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "enum", TOK_ENUM))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "union", TOK_UNION))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "fndecl", TOK_FNDECL))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "fn", TOK_FN))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "global", TOK_GLOBAL))
+        return true;
+
+    if (lexer_accept_ident(lxr))
+        return true;
+
+    // Fallthrough
+    fprintf_s(stderr, "TOKENIZATION ERROR:\n");
+    fprintf_s(stderr, "| at %s:%d\n", lxr->filename, lxr->line);
+    fprintf_s(stderr, "|    Unrecognized token starting with '%c'\n", lxr->input[0]);
+    exit(1);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// Mutates state of the lexer.
+fn(void lexer_advance(struct Lexer *lxr))
+{
+    lxr->old_input = lxr->input;
+    lxr->token = lxr->next_token;
+    lxr->tok_tag = lxr->next_tok_tag;
+    lex(lxr);
+}
+
+// If the next token type is equal to the one provided as argument, advances
+// lexer. Otherwise, simply returns false.
 fn(bool lexer_accept(struct Lexer *lxr, enum TokTag tag))
 {
     // NOTE: we check against `next_tok_tag` (NOT `tok_tag`) in order to set up
@@ -669,7 +641,8 @@ fn(bool lexer_accept(struct Lexer *lxr, enum TokTag tag))
     return false;
 }
 
-// Advanced lexer input if the token tag matches.
+// Requires that the next token type is equal to the one provided as argument.
+// Throws an error and exits if this is not the case.
 fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
 {
     if (lexer_accept(lxr, tag))
@@ -678,61 +651,61 @@ fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
     }
     else
     {
-        printf("/ %s:%d - PARSE ERROR:\n|\n|   expected %s, got %s\n|\n\\   `%.40s`\n",
-               lxr->filename,
-               lxr->line,
-               tok_tag_names[tag],
-               tok_tag_names[lxr->next_tok_tag],
-               lxr->old_input);
+        fprintf_s(stderr, "PARSE ERROR:\n");
+        fprintf_s(stderr, "| at %s:%d\n", lxr->filename, lxr->line);
+        fprintf_s(stderr, "|\n");
+        fprintf_s(stderr, "|   expected %s, got %s\n",
+                  tok_tag_names[tag],
+                  tok_tag_names[lxr->next_tok_tag]);
+        fprintf_s(stderr, "|\n");
+        fprintf_s(stderr, "|>  `%.40s`\n", lxr->old_input);
         exit(1);
     }
 }
 
+fn(int dbg_tok_tag(FILE *out, enum TokTag tok_tag))
+{
+    return fprintf_s(out, "TOKEN %s", tok_tag_names[tok_tag]);
+}
+
 fn(void lex_all_input(char *input))
 {
-    int out_tok_typ = TOK_LEX_ERROR;
-    char *token = "<EMPTY TOKEN>";
-    bool expecting_filename = false;
+    struct Lexer lxr = lexer_init("<test input>", input);
 
     while (true)
     {
-        lex(input, &out_tok_typ, &token, &expecting_filename, &input);
+        dbg_tok_tag(stdout, lxr.tok_tag);
 
-        dbg_tok_tag(stdout, out_tok_typ);
-
-        if (out_tok_typ == TOK_IDENT ||
-            out_tok_typ == TOK_LITERAL_INT ||
-            out_tok_typ == TOK_LITERAL_CHAR ||
-            out_tok_typ == TOK_LITERAL_STRING ||
-            out_tok_typ == TOK_ANGLE_BRACK_FILENAME)
-            printf("\n\t\"%s\"", token);
+        if (lxr.tok_tag == TOK_IDENT ||
+            lxr.tok_tag == TOK_LITERAL_INT ||
+            lxr.tok_tag == TOK_LITERAL_CHAR ||
+            lxr.tok_tag == TOK_LITERAL_STRING ||
+            lxr.tok_tag == TOK_ANGLE_BRACK_FILENAME)
+            printf("\n\t\"%s\"", lxr.token);
 
         printf("\n");
 
-        if (out_tok_typ == TOK_END_OF_INPUT)
+        if (lxr.tok_tag == TOK_END_OF_INPUT)
             break;
+
+        lexer_advance(&lxr);
     }
+}
+
+fn(void test_lex(char *input))
+{
+    printf("--------\n");
+    lex_all_input(input);
 }
 
 fn(void test_lexer())
 {
-    // char *input =
-    //     "#include <stdio.h>\n"
-    //     "#include \"my_file.h\"\n"
-    //     "\n"
-    //     "struct my_type {\n"
-    //     "    int x;\n"
-    //     "};\n"
-    //     "\n"
-    //     "void my_func123()\n"
-    //     "{ // this is a comment! \n"
-    //     "    bool my_bool = true;\n"
-    //     "    int my_int = sizeof(-1234);\n"
-    //     "    char my_char1 = '\\n';\n"
-    //     "    char my_char2 = 'A';\n"
-    //     "    char my_char3 = '\\'';\n"
-    //     "    char *my_str = \"qwea sdf sgd \\\" \\n rty\";\n"
-    //     "}\n";
-
-    // lex_all_input(input);
+    printf("LEXER TESTS---------------------\n");
+    test_lex("  -123  ");
+    test_lex("  \"qwerty pgfdjba\"  ");
+    test_lex("  true  ");
+    test_lex("  false");
+    test_lex("  #include <stdio.h>  ");
+    test_lex("  #include \"stdio.h\"  ");
+    test_lex("  no_comment_after // commenntttttt! \n  ");
 }

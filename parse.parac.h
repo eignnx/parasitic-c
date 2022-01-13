@@ -292,7 +292,7 @@ fn(struct Type *parse_direct_type(struct Lexer *lxr))
             break;
 
         default:
-            puts("unknown type token!\n");
+            fprintf_s(stderr, "Unknown Type token %s\n", tok_tag_names[lxr->tok_tag]);
             exit(1);
         }
 

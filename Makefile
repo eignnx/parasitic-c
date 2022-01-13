@@ -28,6 +28,12 @@ tgt/cstr_buf.h: cstr_buf.parac.h cheats.h tgt
 tgt:
 	$(MKDIR) tgt
 
+test: tgt/paracc-HEAD.exe
+	tgt\paracc-HEAD.exe --test
+
+ctest: bootstrap/paracc-from-c.exe
+	bootstrap\paracc-from-c.exe --test
+
 bootstrap: bootstrap/paracc-from-c.exe
 	bootstrap\paracc-from-c.exe .\paracc.parac.c
 	$(MV) .\paracc.c bootstrap
@@ -41,11 +47,9 @@ bootstrap/paracc-from-c.exe: paracc.parac.c parse.parac.h lex.parac.h cstr_buf.p
 	$(MKDIR) bootstrap
 	$(CC) $(CC_FLAGS) paracc.parac.c -o bootstrap\paracc-from-c.exe
 
-
-
 clean:
-	$(RMDIR) tgt
 	$(RMDIR) bootstrap
+	$(RMDIR) tgt
 
 ifeq ($(OS),Windows_NT)
     RM = cmd /C del /Q /F
