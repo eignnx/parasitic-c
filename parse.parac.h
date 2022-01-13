@@ -2385,7 +2385,8 @@ fn(void test_translation_unit(char *input))
 fn(void test_parse_translation_unit())
 {
     printf("\n\n----------------------TEST TRANSLATION UNITS-----------------");
-    test_translation_unit("#include <stdio.h> fn(int main()) {return 0;}");
+    test_translation_unit("#include <stdio.h>\n fn(int main())\n{\nreturn 0;\n}");
+    // test_translation_unit("#include <stdio.h>\n fn(int main())\n{\nBLARGLE 0;\n}");
 }
 
 fn(void test_parser())

@@ -191,13 +191,19 @@ fn(struct Lexer lexer_init(char *filename, char *input))
 fn(bool lexer_starts_with(struct Lexer *lxr, char *target))
 {
     int i = 0;
+    int lines = 0;
+
     while (true)
     {
         if (target[i] == '\0')
         {
             lxr->input = lxr->input + i;
+            lxr->line += lines;
             return true;
         }
+
+        if (lxr->input[i] == '\n')
+            lines++;
 
         if (lxr->input[i] != target[i])
         {
@@ -224,7 +230,11 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
         {
             break;
         }
-        else if (isspace(*lxr->input))
+
+        if (*lxr->input == '\n')
+            lxr->line++;
+
+        if (isspace(*lxr->input))
         {
             found_space = true;
             lxr->input++;
@@ -235,6 +245,9 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
             {
                 lxr->input++;
             }
+
+            if (*lxr->input == '\n')
+                lxr->line++;
         }
         else
         {
@@ -366,9 +379,16 @@ fn(bool lexer_accept_literal_string(struct Lexer *lxr))
 
     while (lxr->input[i] != '"' && lxr->input[i] != '\0')
     {
+        if (lxr->input[i] == '\n')
+            lxr->line++;
+
         if (lxr->input[i] == '\\')
         {
             i++;
+
+            if (lxr->input[i] == '\n')
+                lxr->line++;
+
             if (lxr->input[i] == '\0') // In case there's a backslash at the EOF.
             {
                 return false;
@@ -398,9 +418,16 @@ fn(bool lexer_accept_angle_bracket_filename(struct Lexer *lxr))
 
     while (lxr->input[i] != '>' && lxr->input[i] != '\0')
     {
+        if (lxr->input[i] == '\n')
+            lxr->line++;
+
         if (lxr->input[i] == '\\')
         {
             i++;
+
+            if (lxr->input[i] == '\n')
+                lxr->line++;
+
             if (lxr->input[i] == '\0') // In case there's a backslash at the EOF.
             {
                 return false;
