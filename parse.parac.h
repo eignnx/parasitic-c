@@ -1997,7 +1997,8 @@ fn(struct Expr *parse_relational_expression(struct Lexer *lxr))
 
         if (!(y = parse_shift_expression(lxr)))
         {
-            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
+            fprintf_s(stderr, "PARSE ERROR: %s:%d\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "| expected expression after `%s`, got nothing\n", tok_tag_names[op]);
             exit(1);
         }
 
@@ -2038,7 +2039,8 @@ fn(struct Expr *parse_equality_expression(struct Lexer *lxr))
 
         if (!(y = parse_relational_expression(lxr)))
         {
-            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[op]);
+            fprintf_s(stderr, "PARSE ERROR: %s:%d\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "| expected expression after `%s`, got nothing\n", tok_tag_names[op]);
             exit(1);
         }
 
@@ -2080,7 +2082,8 @@ fn(struct Expr *parse_logical_and_expression(struct Lexer *lxr))
 
         if (!(y = parse_equality_expression(lxr)))
         {
-            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[TOK_AND]);
+            fprintf_s(stderr, "PARSE ERROR: %s:%d\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "| expected expression after `&&`, got nothing\n");
             exit(1);
         }
 
@@ -2110,7 +2113,8 @@ fn(struct Expr *parse_logical_or_expression(struct Lexer *lxr))
 
         if (!(y = parse_logical_and_expression(lxr)))
         {
-            printf("ERROR: expected expression after `%s`, got nothing\n", tok_tag_names[TOK_OR]);
+            fprintf_s(stderr, "PARSE ERROR: %s:%d\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "| expected expression after `||`, got nothing\n");
             exit(1);
         }
 
