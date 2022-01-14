@@ -8,6 +8,7 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 
 ## [0.0.1]
 ### Added
+- Files can now just end in `.parac` since we have bootstrapped the compiler!
 - Include guards are generated for all `.parac` files. This allows files to be `includ`ed multiple times from multiple files.
 - Lexing and parsing error messages have been greatly improved. Filenames and line numbers are now mentioned so you can jump directly to the source of the error.
 
