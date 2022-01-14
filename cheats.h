@@ -2,6 +2,7 @@
 #define STD_PARAC_H
 
 #include <stdio.h>  // fprintf, stderr
+#include <stdlib.h> // malloc
 #include <string.h> // _strdup
 #include <stdarg.h> // va_list, va_start, va_copy, va_end
 
