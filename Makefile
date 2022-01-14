@@ -2,10 +2,9 @@ CC=zig cc
 CC_FLAGS=-g -std=c11 -Werror -Wpedantic -Wall
 
 # The most recent stable version of the compiler
-MOST_STABLE_VERSION=0.0.0
-NEXT_STABLE_VERSION=0.0.1
-# PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
-PCC=tgt\paracc-HEAD.exe
+MOST_STABLE_VERSION=0.0.1
+NEXT_STABLE_VERSION=0.0.2
+PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
 head: tgt/paracc-HEAD.exe
 
@@ -37,22 +36,7 @@ release: paracc.parac
 	$(CP) .\cheats.h releases\$(NEXT_STABLE_VERSION)
 	$(CC) $(CC_FLAGS) releases\$(NEXT_STABLE_VERSION)\paracc.c -o paracc-v$(NEXT_STABLE_VERSION).exe
 
-
-# bootstrap: bootstrap/paracc-from-c.exe
-# 	bootstrap\paracc-from-c.exe .\paracc.parac.c
-# 	$(MV) .\paracc.c bootstrap
-# 	$(MV) .\parse.h bootstrap
-# 	$(MV) .\lex.h bootstrap
-# 	$(MV) .\cstr_buf.h bootstrap
-# 	$(CP) .\cheats.h bootstrap
-# 	$(CC) $(CC_FLAGS) bootstrap\paracc.c -o paracc-v0.0.0.exe
-
-# bootstrap/paracc-from-c.exe: paracc.parac.c parse.parac.h lex.parac.h cstr_buf.parac.h cheats.h
-# 	$(MKDIR) bootstrap
-# 	$(CC) $(CC_FLAGS) paracc.parac.c -o bootstrap\paracc-from-c.exe
-
 clean:
-	$(RMDIR) bootstrap
 	$(RMDIR) tgt
 
 ifeq ($(OS),Windows_NT)
