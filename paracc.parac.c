@@ -2,7 +2,7 @@
 // #define __STDC_WANT_LIB_EXT1__ 1 // Include `*_s` functions.
 #include <stdio.h>          // fprintf_s, stderr, fopen_s
 #include <stdlib.h>         // exit, perror
-#include <string.h>         // strrchr
+#include <string.h>         // strrchr, strchr
 #include <stdbool.h>        // true, false
 #include "parse.parac.h"    // *
 #include "cheats.h"         // fn
@@ -49,6 +49,8 @@ fn(void comp_log(char *msg))
 fn(char *remove_parac_extension(char *filename))
 {
     char *last_slash = strrchr(filename, path_separator());
+    if (!last_slash)
+        last_slash = filename;
     char *extension = strchr(last_slash, '.');
     if (!extension)
     {
