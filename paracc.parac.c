@@ -166,9 +166,7 @@ fn(char *basename(char *path))
 
 fn(char *path_join(char *p1, char *p2))
 {
-    char *path = malloc(1000); //TODO: fix this.
-    sprintf_s(path, 1000, "%s%c%s", p1, path_separator(), p2);
-    return path;
+    return format_alloc("%s%c%s", p1, path_separator(), p2);
 }
 
 fn(struct List compile_file(char *filename, char *dir_root))

@@ -3,6 +3,7 @@
 
 #include <stdio.h>  // fprintf, stderr
 #include <string.h> // _strdup
+#include <stdarg.h> // va_list, va_start, va_copy, va_end
 
 // A file for putting temporary C code that can't be parsed
 // by the Parasitic C compiler. This file can be included as
@@ -18,6 +19,21 @@ typedef char *cstr_arr[];
                 __FILE__, __LINE__, __func__);                        \
         exit(1);                                                      \
     } while (false)
+
+char *format_alloc(const char *fmt_str, ...)
+{
+    va_list args1;
+    va_start(args1, fmt_str);
+    va_list args2;
+    va_copy(args2, args1);
+
+    int buf_sz = vsnprintf(NULL, 0, fmt_str, args1) + 1;
+    va_end(args1);
+    char *str = malloc(buf_sz);
+    vsnprintf(str, buf_sz, fmt_str, args2);
+    va_end(args2);
+    return str;
+}
 
 // These are psuedo keywords that will be used in the defined language.
 #define fn(signature) signature
