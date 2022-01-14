@@ -206,7 +206,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
     if (fopen_s(&out, new_filename, "w") != 0)
     {
         perror("Failed to open file");
-        fprintf_s(stderr, ">>> '%s'\n", path);
+        fprintf_s(stderr, ">>> '%s'\n", new_filename);
         exit(1);
     }
 
