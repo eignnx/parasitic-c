@@ -757,6 +757,9 @@ fn(bool display_translation_unit(FILE *out, struct List *translation_unit))
 {
     struct ListNode *node = translation_unit->first;
 
+    fprintf_s(out, "#ifndef PARASITIC_C_FILE__%p\n", translation_unit);
+    fprintf_s(out, "#define PARASITIC_C_FILE__%p\n", translation_unit);
+
     while (node)
     {
         struct Item *item = (struct Item *)node->data;
@@ -766,6 +769,8 @@ fn(bool display_translation_unit(FILE *out, struct List *translation_unit))
 
         node = node->next;
     }
+
+    fprintf_s(out, "#endif // PARASITIC_C_FILE__%p\n", translation_unit);
 
     return true;
 }
