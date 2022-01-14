@@ -6,14 +6,18 @@ MOST_STABLE_VERSION=0.0.1
 NEXT_STABLE_VERSION=0.0.2
 PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
+PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac
+PARACC_C_SRCS=cheats.h
+
 head: tgt/paracc-HEAD.exe
 
-tgt/paracc-HEAD.exe: paracc.parac parse.parac lex.parac cstr_buf.parac cheats.h tgt
+tgt/paracc-HEAD.exe: $(PARACC_PARAC_SRCS) $(PARACC_C_SRCS) tgt
 	$(PCC) .\paracc.parac
 	$(MV) .\paracc.c tgt
 	$(MV) .\parse.c tgt
 	$(MV) .\lex.c tgt
 	$(MV) .\cstr_buf.c tgt
+	$(MV) .\list.c tgt
 	$(CP) .\cheats.h tgt
 	$(CC) $(CC_FLAGS) tgt/paracc.c -o $@
 
@@ -26,13 +30,14 @@ test: tgt/paracc-HEAD.exe
 ctest: bootstrap/paracc-from-c.exe
 	bootstrap\paracc-from-c.exe --test
 
-release: paracc.parac
+release: $(PARACC_PARAC_SRCS) $(PARACC_C_SRCS)
 	$(MKDIR) releases\$(NEXT_STABLE_VERSION)
 	$(PCC) .\paracc.parac
 	$(MV) .\paracc.c releases\$(NEXT_STABLE_VERSION)
 	$(MV) .\parse.c releases\$(NEXT_STABLE_VERSION)
 	$(MV) .\lex.c releases\$(NEXT_STABLE_VERSION)
 	$(MV) .\cstr_buf.c releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\list.c releases\$(NEXT_STABLE_VERSION)
 	$(CP) .\cheats.h releases\$(NEXT_STABLE_VERSION)
 	$(CC) $(CC_FLAGS) releases\$(NEXT_STABLE_VERSION)\paracc.c -o paracc-v$(NEXT_STABLE_VERSION).exe
 

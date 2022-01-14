@@ -9,6 +9,7 @@
 #include "cheats.h"       // fn
 #include "cstr_buf.parac" // struct CStrBuf, init_cstr_buf,
                           // read_to_cstr_buf
+#include "list.parac"     // *
 
 global(bool COMP_LOG) = true;
 
