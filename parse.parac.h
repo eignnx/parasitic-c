@@ -60,6 +60,21 @@ fn(void *list_pop_front(struct List *list))
     return data;
 }
 
+fn(bool list_contains_cstr(struct List *haystack, char *needle))
+{
+    struct ListNode *node = haystack->first;
+    while (node)
+    {
+        char *element = (char *)node->data;
+
+        if (strcmp(element, needle) == 0)
+            return true;
+
+        node = node->next;
+    }
+    return false;
+}
+
 // #-------------------------------------------------------------------------
 // #  Types
 // #-------------------------------------------------------------------------

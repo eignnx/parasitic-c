@@ -5,6 +5,7 @@
 #include <string.h>         // strrchr, strchr
 #include <stdbool.h>        // true, false
 #include "parse.parac.h"    // *
+#include "lex.parac.h"      // test_lexer
 #include "cheats.h"         // fn
 #include "cstr_buf.parac.h" // struct CStrBuf, init_cstr_buf,
                             // read_to_cstr_buf
@@ -45,7 +46,12 @@ fn(void comp_log(char *msg))
     }
 }
 
+fndecl(bool is_parac_file(char *));
+fndecl(bool endswith(char *, char *));
+
+// "parse.parac.c" --> "parse.c"
 // "parse.parac.h" --> "parse.h"
+// "parse.parac" --> "parse.h"
 fn(char *remove_parac_extension(char *filename))
 {
     char *last_slash = strrchr(filename, path_separator());
@@ -58,36 +64,22 @@ fn(char *remove_parac_extension(char *filename))
         exit(1);
     }
 
-    if (!(strcmp(extension, ".parac.c") == 0 ||
-          strcmp(extension, ".parac.h") == 0)) // TODO: use strncmp for safety
+    if (!is_parac_file(extension))
     {
-        fprintf_s(stderr, "`%s` is not a `.parac.*` file\n", filename);
+        fprintf_s(stderr, "ERROR:\n| `%s` is not a `.parac(.*)?` file\n", filename);
         exit(1);
     }
 
     int ext_len = strlen(".parac.*");
     int filename_len = strlen(filename); // TODO: use strnlen_s
 
-    int buf_sz = filename_len - ext_len + 2 + 1;
-    char *new_filename = malloc(buf_sz);
-
-    char c_or_h;
-    if (filename[filename_len - 1] == 'c')
-        c_or_h = 'c';
-    else if (filename[filename_len - 1] == 'h')
-        c_or_h = 'h';
+    char *c_or_h;
+    if (endswith(filename, ".c"))
+        c_or_h = ".c";
     else
-        todo; // Error reporting
+        c_or_h = ".h";
 
-    if (snprintf(new_filename, buf_sz,
-                 "%.*s.%c", filename_len - ext_len, filename,
-                 c_or_h) < 0) // TODO: use snprintf_s
-    {
-        perror("Could not make new_filename");
-        exit(1);
-    }
-
-    return new_filename;
+    return format_alloc("%.*s%s", filename_len - ext_len, filename, c_or_h);
 }
 
 struct Compiler
@@ -175,8 +167,6 @@ fn(struct List compile_file(char *filename, char *dir_root))
 {
     FILE *f;
 
-    printf(">> filename = %s, dir_root = %s\n", filename, dir_root);
-
     comp_log("[OPENING FILE '");
     comp_log(filename);
     comp_log("']\n");
@@ -193,6 +183,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
 
     comp_log("[READING FILE TO STRING...]\n");
     read_to_cstr_buf(f, &buf);
+    fclose(f);
 
     comp_log("[PARSING INPUT...]\n");
     struct Lexer lxr = lexer_init(path, buf.buf);
@@ -211,6 +202,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
     }
 
     display_translation_unit(out, &tu);
+    fclose(out);
 
     return included_parac_files;
 }
@@ -221,11 +213,10 @@ fn(void compile_project(struct Compiler *compiler, char *project_root))
     char *project_root_basename = basename(project_root);
     list_push(&compiler->files_to_be_processed, (void *)project_root_basename);
 
-    // TODO: Don't recompile already compiled files
-
     while (compiler->files_to_be_processed.first != NULL)
     {
         char *filename = (char *)list_pop_front(&compiler->files_to_be_processed);
+
         struct List new_files = compile_file(filename, base_dir);
         list_push(&compiler->processed_files, filename);
 
@@ -233,7 +224,12 @@ fn(void compile_project(struct Compiler *compiler, char *project_root))
         while (node)
         {
             char *new_file = (char *)node->data;
-            list_push(&compiler->files_to_be_processed, (void *)new_file);
+
+            // Don't compile already compiled files.
+            if (!list_contains_cstr(&compiler->processed_files, new_file))
+            {
+                list_push(&compiler->files_to_be_processed, (void *)new_file);
+            }
 
             node = node->next;
         }
