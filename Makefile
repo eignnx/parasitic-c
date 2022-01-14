@@ -30,12 +30,12 @@ ctest: bootstrap/paracc-from-c.exe
 release: paracc.parac
 	$(MKDIR) releases\$(NEXT_STABLE_VERSION)
 	$(PCC) .\paracc.parac
-	$(MV) .\paracc.h releases\$(NEXT_STABLE_VERSION)
-	$(MV) .\parse.h releases\$(NEXT_STABLE_VERSION)
-	$(MV) .\lex.h releases\$(NEXT_STABLE_VERSION)
-	$(MV) .\cstr_buf.h releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\paracc.c releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\parse.c releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\lex.c releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\cstr_buf.c releases\$(NEXT_STABLE_VERSION)
 	$(CP) .\cheats.h releases\$(NEXT_STABLE_VERSION)
-	$(CC) $(CC_FLAGS) releases\$(NEXT_STABLE_VERSION)\paracc.h -o paracc-v$(NEXT_STABLE_VERSION).exe
+	$(CC) $(CC_FLAGS) releases\$(NEXT_STABLE_VERSION)\paracc.c -o paracc-v$(NEXT_STABLE_VERSION).exe
 
 
 # bootstrap: bootstrap/paracc-from-c.exe
