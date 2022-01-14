@@ -8,27 +8,14 @@ PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
 head: tgt/paracc-HEAD.exe
 
-tgt/paracc-HEAD.exe: tgt/paracc.c tgt/parse.h tgt/lex.h tgt/cstr_buf.h tgt/cheats.h
-	$(CC) $(CC_FLAGS) tgt/paracc.c -o $@
-
-tgt/cheats.h: cheats.h tgt
-	$(CP) cheats.h tgt
-
-tgt/paracc.c: paracc.parac.c parse.parac.h lex.parac.h cstr_buf.parac.h cheats.h tgt
+tgt/paracc-HEAD.exe: paracc.parac.c parse.parac.h lex.parac.h cstr_buf.parac.h cheats.h tgt
 	$(PCC) .\paracc.parac.c
 	$(MV) .\paracc.c tgt
-
-tgt/parse.h: parse.parac.h lex.parac.h cheats.h tgt
-	$(PCC) .\parse.parac.h
 	$(MV) .\parse.h tgt
-
-tgt/lex.h: lex.parac.h cheats.h tgt
-	$(PCC) .\lex.parac.h
 	$(MV) .\lex.h tgt
-
-tgt/cstr_buf.h: cstr_buf.parac.h cheats.h tgt
-	$(PCC) .\cstr_buf.parac.h
 	$(MV) .\cstr_buf.h tgt
+	$(CP) .\cheats.h tgt
+	$(CC) $(CC_FLAGS) tgt/paracc.c -o $@
 
 tgt:
 	$(MKDIR) tgt
