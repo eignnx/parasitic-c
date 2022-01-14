@@ -46,10 +46,10 @@ fn(void comp_log(char *msg))
 }
 
 // "parse.parac.h" --> "parse.h"
-// TODO: BUG: ".\thing.parac.h" doesn't work because of leading dot
 fn(char *remove_parac_extension(char *filename))
 {
-    char *extension = strchr(filename, '.');
+    char *last_slash = strrchr(filename, path_separator());
+    char *extension = strchr(last_slash, '.');
     if (!extension)
     {
         fprintf_s(stderr, "`%s` doesn't have a file extension\n", filename);
