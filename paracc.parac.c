@@ -109,7 +109,8 @@ fn(bool endswith(char *str, char *suffix))
 fn(bool is_parac_file(char *filename))
 {
     return endswith(filename, ".parac.c") ||
-           endswith(filename, ".parac.h");
+           endswith(filename, ".parac.h") ||
+           endswith(filename, ".parac");
 }
 
 fn(struct List all_included_parac_filenames(struct List *translation_unit))
