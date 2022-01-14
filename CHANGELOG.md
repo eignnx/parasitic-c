@@ -1,0 +1,16 @@
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.0.1]
+### Added
+- Include guards are generated for all `.parac` files. This allows files to be `includ`ed multiple times from multiple files.
+- Lexing and parsing error messages have been greatly improved. Filenames and line numbers are now mentioned so you can jump directly to the source of the error.
+
+## [0.0.0] - 2022-01-11
+### Added
+- First bootstrapped version
