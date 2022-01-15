@@ -102,9 +102,9 @@ fn(bool is_parac_file(char *filename))
            endswith(filename, ".parac");
 }
 
-fn(struct List all_included_parac_filenames(struct List *translation_unit))
+fn(struct List all_included_parac_filenames(struct TranslationUnit *tu))
 {
-    struct ListNode *node = translation_unit->first;
+    struct ListNode *node = tu->directives.first;
     struct List parac_filenames = list_init();
 
     while (node)
@@ -182,7 +182,7 @@ fn(struct List compile_file(char *filename, char *dir_root))
 
     comp_log("[PARSING INPUT...]\n");
     struct Lexer lxr = lexer_init(path, buf.buf);
-    struct List tu = parse_translation_unit(&lxr);
+    struct TranslationUnit tu = parse_translation_unit(&lxr);
     struct List included_parac_files = all_included_parac_filenames(&tu);
 
     FILE *out;
