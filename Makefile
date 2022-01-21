@@ -2,8 +2,8 @@ CC=zig cc
 CC_FLAGS=-g -std=c11 -Werror -Wpedantic -Wall
 
 # The most recent stable version of the compiler
-MOST_STABLE_VERSION=0.0.2
-NEXT_STABLE_VERSION=0.0.3
+MOST_STABLE_VERSION=0.0.3
+NEXT_STABLE_VERSION=0.0.4
 PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
 PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac

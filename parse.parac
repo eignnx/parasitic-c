@@ -821,7 +821,8 @@ struct TranslationUnit
 {
     int id;                   // A unique ID associated with the translation unit.
     struct List directives;   // A `List` of `Item*`s.
-    struct List type_defns;   // A `List` of `Item*`s.
+    struct List enum_defns;   // A `List` of `Item*`s.
+    struct List struct_defns; // A `List` of `Item*`s.
     struct List global_defns; // A `List` of `Item*`s.
     struct List fn_defns;     // A `List` of `Item*`s.
 };
@@ -832,7 +833,8 @@ fn(struct TranslationUnit translation_unit_init())
     tu.id = NEXT_TU_ID;
     NEXT_TU_ID = NEXT_TU_ID + 1;
     tu.directives = list_init();
-    tu.type_defns = list_init();
+    tu.enum_defns = list_init();
+    tu.struct_defns = list_init();
     tu.global_defns = list_init();
     tu.fn_defns = list_init();
     return tu;
@@ -846,9 +848,12 @@ fn(void translation_unit_push_item(struct TranslationUnit *tu, struct Item *item
         list_push(&tu->directives, item);
         return;
 
-    case ITEM_NAMED_STRUCT_DECL:
     case ITEM_NAMED_ENUM_DECL:
-        list_push(&tu->type_defns, item);
+        list_push(&tu->enum_defns, item);
+        return;
+
+    case ITEM_NAMED_STRUCT_DECL:
+        list_push(&tu->struct_defns, item);
         return;
 
     case ITEM_GLOBAL_DECL:
@@ -896,32 +901,18 @@ fn(bool display_item_list(FILE *out, struct List *items))
     return true;
 }
 
-fn(bool display_tu_type_decls(FILE *out, struct TranslationUnit *tu))
+fn(bool display_tu_struct_decls(FILE *out, struct TranslationUnit *tu))
 {
-    struct ListNode *node = tu->type_defns.first;
+    struct ListNode *node = tu->struct_defns.first;
     while (node)
     {
         struct Item *item = (struct Item *)node->data;
 
-        switch (item->tag)
-        {
-        case ITEM_NAMED_STRUCT_DECL:
-            bool res = fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0;
-            if (!res)
-                return false;
-            else
-                break;
-
-        case ITEM_NAMED_ENUM_DECL:
-            bool res = fprintf_s(out, "enum %s;\n", item->as.named_enum_decl.name) >= 0;
-            if (!res)
-                return false;
-            else
-                break;
-
-        default:
+        if (item->tag != ITEM_NAMED_STRUCT_DECL)
             todo;
-        }
+
+        if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
+            return false;
 
         node = node->next;
     }
@@ -956,11 +947,14 @@ fn(bool display_translation_unit(FILE *out, struct TranslationUnit *tu))
            fprintf_s(out, "\n// DIRECTIVES //\n") >= 0 &&
            display_item_list(out, &tu->directives) &&
 
-           fprintf_s(out, "\n// TYPE DECLS //\n") >= 0 &&
-           display_tu_type_decls(out, tu) &&
+           fprintf_s(out, "\n// STRUCT DECLS //\n") >= 0 &&
+           display_tu_struct_decls(out, tu) &&
 
-           fprintf_s(out, "\n// TYPE DEFNS //\n") >= 0 &&
-           display_item_list(out, &tu->type_defns) &&
+           fprintf_s(out, "\n// ENUM DEFNS //\n") >= 0 &&
+           display_item_list(out, &tu->enum_defns) &&
+
+           fprintf_s(out, "\n// STRUCT DEFNS //\n") >= 0 &&
+           display_item_list(out, &tu->struct_defns) &&
 
            fprintf_s(out, "\n// GLOBAL DEFNS //\n") >= 0 &&
            display_item_list(out, &tu->global_defns) &&
