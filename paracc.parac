@@ -196,7 +196,12 @@ fn(struct List compile_file(char *filename, char *dir_root))
         exit(1);
     }
 
-    display_translation_unit(out, &tu);
+    if (!display_translation_unit(out, &tu))
+    {
+        fprintf_s(stderr, "Error: Failure to output translation unit!\n");
+        fclose(out);
+        exit(1);
+    }
     fclose(out);
 
     return included_parac_files;

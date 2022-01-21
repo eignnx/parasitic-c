@@ -55,8 +55,11 @@ struct Type
 
         // Compound types
         TYPE_PTR,
+        TYPE_FN_PTR,
         TYPE_NAMED_STRUCT_REF,
         TYPE_NAMED_ENUM_REF,
+
+        // TODO: Remove anonymous types once algebraic data types are impl'd.
         TYPE_ANON_STRUCT,
         TYPE_ANON_UNION,
         TYPE_ANON_ENUM,
@@ -68,6 +71,12 @@ struct Type
         {
             struct Type *child;
         } ptr;
+
+        struct
+        {
+            struct List param_types; // A `List` of `Type*`s.
+            struct Type *ret_type;
+        } fn_ptr;
 
         struct
         {
@@ -88,46 +97,142 @@ struct Type
 
 fndecl(bool display_struct_members(FILE *, struct List *));
 fndecl(bool display_enum_members(FILE *, struct List *));
+fndecl(bool display_param_types(FILE *, struct List *));
+fndecl(bool display_type(FILE *, struct Type *));
 
-fn(bool display_type(FILE *out, struct Type *type))
+fn(bool display_fn_pointer_type(FILE *out, struct Type *type, char *binder))
 {
+    // We're at the first non-fn-ptr type in the return-type chain.
+    if (type == NULL || type->tag != TYPE_FN_PTR)
+    {
+        if (type == NULL)
+            return fprintf_s(out, "void ") >= 0;
+        else
+            return display_type(out, type) &&
+                   fprintf_s(out, " ") >= 0;
+        // The stack will now unwind, and essentially go to "Step 2" in branch 2.
+    }
+    // This is the initial entry point to the function (usually).
+    else if (type->tag == TYPE_FN_PTR && binder)
+    {
+        // Initiate recursion.
+        // Step 1: Print out:
+        //             a) the final return type, and
+        //             b) as many leading '(*'s.
+        if (!display_fn_pointer_type(out, type->as.fn_ptr.ret_type, NULL))
+            return false;
+
+        // Step 2: Print out the bottom-most function pointer with it's binder.
+        if (!(fprintf_s(out, "(*%s)(", binder) >= 0 &&
+              display_param_types(out, &type->as.fn_ptr.param_types) &&
+              fprintf_s(out, ")") >= 0))
+            return false;
+
+        // Step 3: Print ')(PARAMS)' for all fn pointers
+        struct Type *t = type->as.fn_ptr.ret_type;
+        while (t != NULL && t->tag == TYPE_FN_PTR)
+        {
+            if (!(fprintf_s(out, ")(") >= 0 &&
+                  display_param_types(out, &t->as.fn_ptr.param_types) &&
+                  fprintf_s(out, ")") >= 0))
+                return false;
+
+            t = t->as.fn_ptr.ret_type;
+        }
+
+        return true;
+    }
+    // We're working our way down the tree, need to print a '(*' at each step on
+    // our way back UP.
+    else // if (type->tag == TYPE_FN_PTR && !binder)
+    {
+        return display_fn_pointer_type(out, type->as.fn_ptr.ret_type, NULL) &&
+               fprintf_s(out, "(*") >= 0;
+    }
+}
+
+fndecl(bool display_fn_params(FILE *, struct List *));
+
+fn(bool display_fn_signature(FILE *out, char *name, struct List *fn_params, struct Type *ret_type))
+{
+    // Initiate recursion.
+    // Step 1: Print out:
+    //             a) the final return type, and
+    //             b) as many leading '(*'s.
+    if (!display_fn_pointer_type(out, ret_type, NULL))
+        return false;
+
+    // Step 2: Print out the bottom-most function pointer with it's binder.
+    if (!(fprintf_s(out, "%s(", name) >= 0 &&
+          display_fn_params(out, fn_params) &&
+          fprintf_s(out, ")") >= 0))
+        return false;
+
+    // Step 3: Print ')(PARAMS)' for all fn pointers
+    struct Type *t = ret_type;
+    while (t != NULL && t->tag == TYPE_FN_PTR)
+    {
+        if (!(fprintf_s(out, ")(") >= 0 &&
+              display_param_types(out, &t->as.fn_ptr.param_types) &&
+              fprintf_s(out, ")") >= 0))
+            return false;
+
+        t = t->as.fn_ptr.ret_type;
+    }
+
+    return true;
+}
+
+fn(bool display_typed_identifier(FILE *out, struct Type *type, char *ident))
+{
+    char *space = " ";
+    if (ident == NULL || ident[0] == '\0')
+        space = "";
+
     switch (type->tag)
     {
     case TYPE_INT:
-        return fprintf_s(out, "int") >= 0;
+        return fprintf_s(out, "int%s%s", space, ident) >= 0;
     case TYPE_BOOL:
-        return fprintf_s(out, "bool") >= 0;
+        return fprintf_s(out, "bool%s%s", space, ident) >= 0;
     case TYPE_CHAR:
-        return fprintf_s(out, "char") >= 0;
+        return fprintf_s(out, "char%s%s", space, ident) >= 0;
     case TYPE_VOID:
-        return fprintf_s(out, "void") >= 0;
+        return fprintf_s(out, "void%s%s", space, ident) >= 0;
     case TYPE_CSTR_ARR:
-        return fprintf_s(out, "cstr_arr") >= 0;
+        return fprintf_s(out, "cstr_arr%s%s", space, ident) >= 0;
     case TYPE_FILE:
-        return fprintf_s(out, "FILE") >= 0;
+        return fprintf_s(out, "FILE%s%s", space, ident) >= 0;
     case TYPE_PTR:
-        return display_type(out, type->as.ptr.child) &&
-               fprintf_s(out, "*") >= 0;
+        // return fprintf_s(out, "(") >= 0 &&
+        //        display_type(out, type->as.ptr.child) &&
+        //        fprintf_s(out, "*)") >= 0;
+        return display_typed_identifier(out, type->as.ptr.child, "") &&
+               fprintf_s(out, " *%s", ident) >= 0;
+    case TYPE_FN_PTR:
+        return display_fn_pointer_type(out, type, ident);
     case TYPE_NAMED_STRUCT_REF:
-        return fprintf_s(out, "struct %s", type->as.named.name) >= 0;
+        return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_NAMED_ENUM_REF:
-        return fprintf_s(out, "enum %s", type->as.named.name) >= 0;
+        return fprintf_s(out, "enum %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_ANON_STRUCT:
         return fprintf_s(out, "struct {\n") >= 0 &&
                display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
-               fprintf_s(out, "}") >= 0;
+               fprintf_s(out, "}%s%s", space, ident) >= 0;
     case TYPE_ANON_UNION:
         return fprintf_s(out, "union {\n") >= 0 &&
                display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
-               fprintf_s(out, "}") >= 0;
+               fprintf_s(out, "}%s%s", space, ident) >= 0;
     case TYPE_ANON_ENUM:
         return fprintf_s(out, "enum {\n") >= 0 &&
                display_enum_members(out, &type->as.anon_enum.enum_members) &&
-               fprintf_s(out, "}") >= 0;
-    default:
-        perror("Invalid Type tag");
-        exit(1);
+               fprintf_s(out, "}%s%s", space, ident) >= 0;
     }
+}
+
+fn(bool display_type(FILE *out, struct Type *type))
+{
+    return display_typed_identifier(out, type, "");
 }
 
 fn(bool display_struct_members(FILE *out, struct List *list))
@@ -139,8 +244,8 @@ fn(bool display_struct_members(FILE *out, struct List *list))
         struct StructMember *sm = (struct StructMember *)node->data;
 
         bool result = fprintf_s(out, "    ") >= 0 &&
-                      display_type(out, sm->type) &&
-                      fprintf_s(out, " %s;\n", sm->field) >= 0;
+                      display_typed_identifier(out, sm->type, sm->field) &&
+                      fprintf_s(out, ";\n", sm->field) >= 0;
 
         if (!(result))
             return false;
@@ -189,6 +294,7 @@ fn(struct Type *parse_type(struct Lexer *lxr))
 }
 
 fndecl(struct List parse_enumerator_list(struct Lexer *));
+fndecl(struct List parse_param_types(struct Lexer *));
 
 // direct_type ::= 'void'
 //               | 'int'
@@ -199,10 +305,12 @@ fndecl(struct List parse_enumerator_list(struct Lexer *));
 //               | named_enum_ref
 //               | anonymous_struct_or_union
 //               | anonymous_enum
+//               | fn_ptr_type
 // named_struct_ref ::= 'struct' 'ident'
 // named_enum_ref ::= 'enum' 'ident'
 // anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
 // anonymous_enum ::= 'enum' '{' enumerator_list '}'
+// fn_ptr_type ::= 'fn' '(' param_types ')' ('->' type)?
 fn(struct Type *parse_direct_type(struct Lexer *lxr))
 {
     struct Type *type;
@@ -306,6 +414,33 @@ fn(struct Type *parse_direct_type(struct Lexer *lxr))
         type = malloc(sizeof(*type));
         type->tag = TYPE_ANON_UNION;
         type->as.anon_struct_or_union.struct_members = members;
+
+        return type;
+    }
+
+    // FUNTION POINTER TYPES
+    if (lexer_accept(lxr, TOK_FN))
+    {
+        struct Type *ret_type = NULL;
+        lexer_expect(lxr, TOK_OPEN_PAREN);
+        struct List param_types = parse_param_types(lxr);
+        lexer_expect(lxr, TOK_CLOSE_PAREN);
+
+        // Parse the optional return type.
+        if (lexer_accept(lxr, TOK_ARROW))
+        {
+            if (!(ret_type = parse_type(lxr)))
+            {
+                fprintf_s(stderr, "PARSE ERROR at %s:%d\n", lxr->filename, lxr->line);
+                fprintf_s(stderr, "| Could not parse a return type after `->`.\n");
+                exit(1);
+            }
+        }
+
+        type = malloc(sizeof(*type));
+        type->tag = TYPE_FN_PTR;
+        type->as.fn_ptr.param_types = param_types;
+        type->as.fn_ptr.ret_type = ret_type;
 
         return type;
     }
@@ -535,6 +670,7 @@ struct Item
     } as;
 };
 
+// Expects a `List` of `Type *`s.
 fn(bool display_param_types(FILE *out, struct List *param_types))
 {
     struct ListNode *node = param_types->first;
@@ -569,6 +705,7 @@ struct FnParam
     char *name;
 };
 
+// Expects a `List` of `FnParam *`s.
 fn(bool display_fn_params(FILE *out, struct List *params))
 {
     struct ListNode *node = params->first;
@@ -579,15 +716,14 @@ fn(bool display_fn_params(FILE *out, struct List *params))
 
         if (node->next)
         {
-            bool result = display_type(out, param->type) &&
-                          fprintf_s(out, " %s, ", param->name);
+            bool result = display_typed_identifier(out, param->type, param->name) &&
+                          fprintf_s(out, ", ") >= 0;
             if (!result)
                 return false;
         }
         else
         {
-            bool result = display_type(out, param->type) &&
-                          fprintf_s(out, " %s", param->name);
+            bool result = display_typed_identifier(out, param->type, param->name);
             if (!result)
                 return false;
         }
@@ -603,23 +739,20 @@ fn(bool display_item(FILE *out, struct Item *item))
     switch (item->tag)
     {
     case ITEM_FN_DECL:
-        return fprintf_s(out, "fndecl(") >= 0 &&
-               display_type(out, item->as.fn_decl.ret_type) &&
-               fprintf_s(out, " %s(", item->as.fn_decl.name) >= 0 &&
-               display_param_types(out, &item->as.fn_decl.param_types) &&
-               fprintf_s(out, "));\n\n") >= 0;
+        return display_fn_signature(out, item->as.fn_decl.name,
+                                    &item->as.fn_decl.param_types,
+                                    item->as.fn_decl.ret_type) &&
+               fprintf_s(out, ";\n\n") >= 0;
     case ITEM_FN_DEF:
-        return fprintf_s(out, "fn(") >= 0 &&
-               display_type(out, item->as.fn_def.ret_type) &&
-               fprintf_s(out, " %s(", item->as.fn_def.name) >= 0 &&
-               display_fn_params(out, &item->as.fn_def.params) &&
-               fprintf_s(out, "))\n{\n") >= 0 &&
+        return display_fn_signature(out, item->as.fn_def.name,
+                                    &item->as.fn_def.params,
+                                    item->as.fn_def.ret_type) &&
+               fprintf_s(out, "\n{\n") >= 0 &&
                display_stmt_list(out, &item->as.fn_def.body_stmts) &&
                fprintf_s(out, "}\n\n") >= 0;
     case ITEM_GLOBAL_DECL:
-        return fprintf_s(out, "global(") >= 0 &&
-               display_type(out, item->as.global_decl.type) &&
-               fprintf_s(out, " %s) = ", item->as.global_decl.name) >= 0 &&
+        return display_type(out, item->as.global_decl.type) &&
+               fprintf_s(out, " %s = ", item->as.global_decl.name) >= 0 &&
                display_constant_expr(out, item->as.global_decl.initializer) &&
                fprintf_s(out, ";\n\n") >= 0;
     case ITEM_NAMED_STRUCT_DECL:
@@ -802,22 +935,13 @@ fn(bool display_tu_fn_decls(FILE *out, struct TranslationUnit *tu))
     {
         struct Item *item = (struct Item *)node->data;
 
-        switch (item->tag)
-        {
-        case ITEM_FN_DEF:
-            bool res = fprintf_s(out, "fndecl(") >= 0 &&
-                       display_type(out, item->as.fn_def.ret_type) &&
-                       fprintf_s(out, " %s(", item->as.fn_def.name) >= 0 &&
-                       display_fn_params(out, &item->as.fn_def.params) &&
-                       fprintf_s(out, "));\n") >= 0;
-            if (!res)
-                return false;
-            else
-                break;
-
-        default:
+        if (item->tag != ITEM_FN_DEF)
             todo;
-        }
+
+        if (!(display_fn_signature(out, item->as.fn_def.name, &item->as.fn_def.params,
+                                   item->as.fn_def.ret_type) &&
+              fprintf_s(out, ";\n") >= 0))
+            return false;
 
         node = node->next;
     }
@@ -826,22 +950,28 @@ fn(bool display_tu_fn_decls(FILE *out, struct TranslationUnit *tu))
 
 fn(bool display_translation_unit(FILE *out, struct TranslationUnit *tu))
 {
+    return fprintf_s(out, "#ifndef PARASITIC_C_FILE__%X\n", tu->id) >= 0 &&
+           fprintf_s(out, "#define PARASITIC_C_FILE__%X\n", tu->id) >= 0 &&
 
-    return (fprintf_s(out, "#ifndef PARASITIC_C_FILE__%X\n", tu->id) >= 0 &&
-            fprintf_s(out, "#define PARASITIC_C_FILE__%X\n", tu->id) >= 0 &&
-            fprintf_s(out, "\n// DIRECTIVES //\n") >= 0 &&
-            display_item_list(out, &tu->directives) &&
-            fprintf_s(out, "\n// TYPE DECLS //\n") >= 0 &&
-            display_tu_type_decls(out, tu) &&
-            fprintf_s(out, "\n// TYPE DEFNS //\n") >= 0 &&
-            display_item_list(out, &tu->type_defns) &&
-            fprintf_s(out, "\n// GLOBAL DEFNS //\n") >= 0 &&
-            display_item_list(out, &tu->global_defns) &&
-            fprintf_s(out, "\n// FN DECLS //\n") >= 0 &&
-            display_tu_fn_decls(out, tu) &&
-            fprintf_s(out, "\n// FN DEFNS //\n") >= 0 &&
-            display_item_list(out, &tu->fn_defns) &&
-            fprintf_s(out, "\n#endif // PARASITIC_C_FILE__%X\n", tu->id));
+           fprintf_s(out, "\n// DIRECTIVES //\n") >= 0 &&
+           display_item_list(out, &tu->directives) &&
+
+           fprintf_s(out, "\n// TYPE DECLS //\n") >= 0 &&
+           display_tu_type_decls(out, tu) &&
+
+           fprintf_s(out, "\n// TYPE DEFNS //\n") >= 0 &&
+           display_item_list(out, &tu->type_defns) &&
+
+           fprintf_s(out, "\n// GLOBAL DEFNS //\n") >= 0 &&
+           display_item_list(out, &tu->global_defns) &&
+
+           fprintf_s(out, "\n// FN DECLS //\n") >= 0 &&
+           display_tu_fn_decls(out, tu) &&
+
+           fprintf_s(out, "\n// FN DEFNS //\n") >= 0 &&
+           display_item_list(out, &tu->fn_defns) &&
+
+           fprintf_s(out, "\n#endif // PARASITIC_C_FILE__%X\n", tu->id);
 }
 
 // item ::= function_decl
@@ -1182,15 +1312,15 @@ fn(bool display_stmt(FILE *out, struct Stmt *stmt))
     case STMT_VAR_DECL:
         if (stmt->as.var_decl.initializer)
         {
-            return display_type(out, stmt->as.var_decl.type) &&
-                   fprintf_s(out, " %s = ", stmt->as.var_decl.name) >= 0 &&
+            return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
+                   fprintf_s(out, " = ") >= 0 &&
                    display_expr(out, stmt->as.var_decl.initializer) &&
                    fprintf_s(out, ";\n") >= 0;
         }
         else
         {
-            return display_type(out, stmt->as.var_decl.type) &&
-                   fprintf_s(out, " %s;\n", stmt->as.var_decl.name) >= 0;
+            return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
+                   fprintf_s(out, ";\n", stmt->as.var_decl.name) >= 0;
         }
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
@@ -2367,6 +2497,19 @@ fn(void test_type(char *input))
         fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
 }
 
+fn(void test_typed_ident(char *input))
+{
+    struct Lexer lxr;
+    struct Type *type;
+
+    printf("\n");
+    lxr = lexer_init("<typed ident parse test>", input);
+    if ((type = parse_type(&lxr)) && lexer_accept(&lxr, TOK_END_OF_INPUT))
+        display_typed_identifier(stdout, type, "foo");
+    else
+        fprintf_s(stderr, "\n!!! Test failure on input:\n  \"%s\"\n", input);
+}
+
 fn(void test_parse_types())
 {
     printf("\n\n----------------------TEST TYPES-----------------------------");
@@ -2384,6 +2527,15 @@ fn(void test_parse_types())
     test_type("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
     test_type("  enum { SOMETHING, TRAILING_COMMA, }  ");
     test_type("  enum { }  ");
+    test_type("  fn()  ");
+    test_type("  fn(int, bool)  ");
+    test_type("  fn(int, bool,)  ");
+    test_type("  fn(int, bool,) -> struct Expr* ");
+
+    test_typed_ident("  fn()  ");
+    test_typed_ident("  fn(int, bool)  ");
+    test_typed_ident("  fn(int, bool,) -> struct Expr* ");
+    test_typed_ident("  fn(int) -> fn(bool) -> fn(FILE) -> char  ");
 }
 
 fn(void test_stmt(char *input))

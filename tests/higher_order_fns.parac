@@ -1,0 +1,58 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "../cheats.h"
+
+fn(bool eps_lt_1000(int x))
+{
+    return x < 1000;
+}
+
+fn(bool eps_lt_100(int x))
+{
+    return x < 100;
+}
+
+fn(bool eps_lt_10(int x))
+{
+    return x < 10;
+}
+
+global(int X) = -123;
+
+fn(fn(int)->bool get_epsilon_fn(int which))
+{
+    switch (which)
+    {
+    case 1000:
+        return eps_lt_1000;
+    case 100:
+        return eps_lt_100;
+    case 10:
+        return eps_lt_10;
+    default:
+        printf("unknown input to `get_epsilon_fn`: %d\n", which);
+        exit(1);
+    }
+}
+
+fn(int apply_fn_if_outside_epsilon(fn(int) -> int op, int x, int epsilon_fn_idx))
+{
+    fn(int) -> bool eps_fn = get_epsilon_fn(epsilon_fn_idx);
+
+    if (eps_fn(x))
+        return op(x);
+    else
+        return X;
+}
+
+fn(int increment(int x))
+{
+    return x + 1;
+}
+
+fn(int main())
+{
+    int x = apply_fn_if_outside_epsilon(increment, 3, 10);
+    printf(">>> %d\n", x);
+}

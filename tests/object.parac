@@ -1,0 +1,30 @@
+#include <stdio.h>
+
+struct Animal
+{
+    fn() speak;
+};
+
+fn(void bark())
+{
+    printf("Arf!\n");
+}
+
+fn(void meow())
+{
+    printf("Meow.\n");
+}
+
+fn(int main())
+{
+    struct Animal dog;
+    dog.speak = bark;
+
+    struct Animal cat;
+    cat.speak = meow;
+
+    dog.speak();
+    cat.speak();
+
+    return 0;
+}

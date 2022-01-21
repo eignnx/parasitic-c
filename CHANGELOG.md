@@ -8,6 +8,8 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 ## [0.0.2]
 ### Added
 - Automatic Forward Declarations: Allow any ordering of struct/union/enum and function definitions! You no longer have to worry about ordering because everything will be declared automatically at the top of the generated C file!
+- Function pointers are now supported! A pointer to a function that takes an int and returns a char is declared like this: `fn(int) -> char my_fn_ptr`
+    - Function pointers can be passed to functions, returned from functions, and stored in structs! This was difficult to do because the C syntax for function pointers is hideous.
 
 ## [0.0.1]
 ### Added

@@ -3,9 +3,21 @@
 #include "../cheats.h"
 #include "goodbye_world.parac"
 
+fn(bool say_hello_to(char *first, char *middle, char *last))
+{
+    printf("Hello %s %s %s!\n", first, middle, last);
+    return true;
+}
+
+fn(void call_with_sam_i_am(fn(char *, char *, char *)->bool f))
+{
+    f("Sam", "I", "Am");
+}
+
 fn(int main())
 {
     printf("Hello, World!\n");
+    call_with_sam_i_am(say_hello_to);
 
     // Test that this doesn't break the lexer. It needs to not parse as an
     // `TOK_ANGLE_BRACKET_FILENAME`.
