@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "../cheats.h"
 
-fn(int main())
+fn int main()
 {
     let p: struct Point;
     p.x = 123;
@@ -10,7 +10,7 @@ fn(int main())
     return 0;
 }
 
-fn(void print_point(p: struct Point))
+fn void print_point(p: struct Point)
 {
     printf("{ .x=%d, .y=%d }\n", p.x, p.y);
 }

@@ -5,17 +5,17 @@ struct Animal
     speak: fn(),
 };
 
-fn(void bark())
+fn void bark()
 {
     printf("Arf!\n");
 }
 
-fn(void meow())
+fn void meow()
 {
     printf("Meow.\n");
 }
 
-fn(int main())
+fn int main()
 {
     let dog: struct Animal;
     dog.speak = bark;
