@@ -17,6 +17,6 @@ fn(void print_point(struct Point p))
 
 struct Point
 {
-    int x;
-    int y;
+    x : int,
+        y : int,
 };

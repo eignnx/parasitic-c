@@ -2,7 +2,7 @@
 
 struct Animal
 {
-    fn() speak;
+    speak : fn(),
 };
 
 fn(void bark())

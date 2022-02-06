@@ -7,7 +7,10 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 ## [0.1.0]
 ### Added
 - You no longer need to forward declare functions. The `fndecl` keyword has been removed.
+
+### Changed
 - The `let` keyword must now be used to declare local variables.
+- Struct members are now declared `ident: type,` instead of `type ident;`.
 
 ## [0.0.3]
 ### Fixed

@@ -19,21 +19,26 @@ struct StructMember
 fndecl(struct Type *parse_type(struct Lexer *));
 
 // struct_member_list ::= struct_member*
-// struct_member ::= type 'ident' ';'
+// struct_member ::= 'ident' ':' type ','
 fn(struct List parse_struct_member_list(struct Lexer *lxr))
 {
-    struct Type *type;
     struct List list = list_init();
 
-    while ((type = parse_type(lxr)))
+    while (lexer_accept(lxr, TOK_IDENT))
     {
-        lexer_expect(lxr, TOK_IDENT);
         char *field = lxr->token;
-        lexer_expect(lxr, TOK_SEMI);
+
+        lexer_expect(lxr, TOK_COLON);
+
+        struct Type *type;
+        if (!(type = parse_type(lxr)))
+            todo; // TODO: report error
+
+        lexer_expect(lxr, TOK_COMMA);
 
         struct StructMember *sm = malloc(sizeof(*sm));
-        sm->type = type;
         sm->field = field;
+        sm->type = type;
 
         list_push(&list, (void *)sm);
     }
@@ -2477,8 +2482,8 @@ fn(void test_parse_types())
     test_type("  char**  ");
     test_type("  struct Expr  ");
     test_type("  enum Tag  ");
-    test_type("  struct { int x; int y; }  ");
-    test_type("  union { int x; void *y; }  ");
+    test_type("  struct { x: int, y: int, }  ");
+    test_type("  union { x: int, y: void *, }  ");
     test_type("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
     test_type("  enum { SOMETHING, TRAILING_COMMA, }  ");
     test_type("  enum { }  ");
@@ -2542,15 +2547,13 @@ fn(void test_item(char *input))
 fn(void test_parse_items())
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
-    test_item("  fndecl(int foo(int, int));  ");
-    test_item("  fndecl(void bar());  ");
     test_item("  fn(int foo(int x, int y)) { return x + y; }  ");
     test_item("  fn(void bar()) {}  ");
     test_item("  fn(void three_things()) { a(); b(); c(); }  ");
     test_item("  global(int my_const) = 100;  ");
     test_item("  global(cstr_arr names) = { \"Jenn\", \"Tim\", \"Scott\", };  ");
     test_item("  struct EmptyStruct {};  ");
-    test_item("  struct Point { int x; int y; };  ");
+    test_item("  struct Point { x: int, y: int, };  ");
     test_item("  enum EmptyEnum {};  ");
     test_item("  enum TokTag { TOK_IDENT, TOK_PLUS };  ");
     test_item("  #include <stdio.h>  ");
