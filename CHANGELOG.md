@@ -9,7 +9,7 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 - You no longer need to forward declare functions. The `fndecl` keyword has been removed.
 
 ### Changed
-- The `let` keyword must now be used to declare local variables.
+- Local and global variables are now declared `let/global ident: type = value;`
 - Struct members and function parameters are now declared `ident: type,` instead of `type ident;`.
 - Functions are now defined `fn name(params...) -> ret_type { stmts... }`, or `fn name(params...) { stmts... }` (for void functions).
 

@@ -1004,20 +1004,24 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // GLOBAL VARIABLE DEFINITION
-    // global_def ::= 'global' '(' type 'ident' ')' '=' constant_expr ';'
+    // global_def ::= 'global' 'ident' ':' type '=' constant_expr ';'
     if (lexer_accept(lxr, TOK_GLOBAL))
     {
-        lexer_expect(lxr, TOK_OPEN_PAREN);
+        lexer_expect(lxr, TOK_IDENT);
+        char *name = lxr->token;
+
+        lexer_expect(lxr, TOK_COLON);
+
         struct Type *type;
         if (!(type = parse_type(lxr)))
             todo; // Report error
-        lexer_expect(lxr, TOK_IDENT);
-        char *name = lxr->token;
-        lexer_expect(lxr, TOK_CLOSE_PAREN);
+
         lexer_expect(lxr, TOK_EQUAL);
+
         struct ConstantExpr *initializer;
         if (!(initializer = parse_constant_expr(lxr)))
             todo; // Report error
+
         lexer_expect(lxr, TOK_SEMI);
 
         item = malloc(sizeof(*item));
@@ -2560,8 +2564,8 @@ fn(void test_parse_items())
     test_item("  fn foo(x: int, y: int) -> int { return x + y; }  ");
     test_item("  fn bar() -> void {}  ");
     test_item("  fn three_things() { a(); b(); c(); }  ");
-    test_item("  global(int my_const) = 100;  ");
-    test_item("  global(cstr_arr names) = { \"Jenn\", \"Tim\", \"Scott\", };  ");
+    test_item("  global my_const: int = 100;  ");
+    test_item("  global names: cstr_arr = { \"Jenn\", \"Tim\", \"Scott\", };  ");
     test_item("  struct EmptyStruct {};  ");
     test_item("  struct Point { x: int, y: int, };  ");
     test_item("  enum EmptyEnum {};  ");
