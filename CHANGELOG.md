@@ -6,7 +6,8 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 
 ## [0.1.0]
 ### Added
-- You no longer need to forward declare functions. The `fndecl` keyword has been removed.
+- You no longer need to forward declare functions, in fact the `fndecl` keyword has been removed.
+- You are no longer required to put a semicolon after a struct or enum definitoin. Doing so will give a compiler warning, but not a hard error.
 
 ### Changed
 - Local and global variables are now declared `let/global ident: type = value;`

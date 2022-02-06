@@ -1034,7 +1034,7 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // STRUCT DEFINITION
-    // named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}' ';'
+    // named_struct_decl ::= 'struct' 'ident' '{' struct_member+ '}'
     if (lexer_accept(lxr, TOK_STRUCT))
     {
         lexer_expect(lxr, TOK_IDENT);
@@ -1042,7 +1042,11 @@ fn(struct Item *parse_item(struct Lexer *lxr))
         lexer_expect(lxr, TOK_OPEN_BRACE);
         struct List members = parse_struct_member_list(lxr);
         lexer_expect(lxr, TOK_CLOSE_BRACE);
-        lexer_expect(lxr, TOK_SEMI);
+        if (lexer_accept(lxr, TOK_SEMI))
+        {
+            fprintf_s(stderr, "[WARNING] %s:%d:\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "    A semicolon is no longer needed after a struct definition.\n");
+        }
 
         struct Item *item = malloc(sizeof(*item));
         item->tag = ITEM_NAMED_STRUCT_DECL;
@@ -1053,7 +1057,7 @@ fn(struct Item *parse_item(struct Lexer *lxr))
     }
 
     // ENUM DEFINITION
-    // named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}' ';'
+    // named_enum_decl ::= 'enum' 'ident' '{' enumerator_list '}'
     if (lexer_accept(lxr, TOK_ENUM))
     {
         lexer_expect(lxr, TOK_IDENT);
@@ -1061,7 +1065,11 @@ fn(struct Item *parse_item(struct Lexer *lxr))
         lexer_expect(lxr, TOK_OPEN_BRACE);
         struct List members = parse_enumerator_list(lxr);
         lexer_expect(lxr, TOK_CLOSE_BRACE);
-        lexer_expect(lxr, TOK_SEMI);
+        if (lexer_accept(lxr, TOK_SEMI))
+        {
+            fprintf_s(stderr, "[WARNING] %s:%d:\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "    A semicolon is no longer needed after an enum definition.\n");
+        }
 
         struct Item *item = malloc(sizeof(*item));
         item->tag = ITEM_NAMED_ENUM_DECL;
@@ -2566,10 +2574,10 @@ fn(void test_parse_items())
     test_item("  fn three_things() { a(); b(); c(); }  ");
     test_item("  global my_const: int = 100;  ");
     test_item("  global names: cstr_arr = { \"Jenn\", \"Tim\", \"Scott\", };  ");
-    test_item("  struct EmptyStruct {};  ");
-    test_item("  struct Point { x: int, y: int, };  ");
-    test_item("  enum EmptyEnum {};  ");
-    test_item("  enum TokTag { TOK_IDENT, TOK_PLUS };  ");
+    test_item("  struct EmptyStruct {}  ");
+    test_item("  struct Point { x: int, y: int, }  ");
+    test_item("  enum EmptyEnum {}  ");
+    test_item("  enum TokTag { TOK_IDENT, TOK_PLUS }  ");
     test_item("  #include <stdio.h>  ");
     test_item("  #include \"my_file.h\"  ");
 }
