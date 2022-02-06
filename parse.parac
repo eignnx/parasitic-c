@@ -2,7 +2,7 @@
 #include <stdlib.h>   // atoi, malloc, free
 #include "lex.parac"  // lex, lex_all_input
 #include "list.parac" // *
-#include "cheats.h"   // todo, fn, fndecl, global
+#include "cheats.h"   // todo, fn, global
 
 // #-------------------------------------------------------------------------
 // #  Types
@@ -613,7 +613,6 @@ struct Item
 {
     enum
     {
-        ITEM_FN_DECL,
         ITEM_FN_DEF,
         ITEM_GLOBAL_DECL,
         ITEM_NAMED_STRUCT_DECL,
@@ -623,13 +622,6 @@ struct Item
 
     union
     {
-        struct
-        {
-            char *name;
-            struct List param_types; // A `List` of `Type*`s.
-            struct Type *ret_type;
-        } fn_decl;
-
         struct
         {
             char *name;
@@ -738,11 +730,6 @@ fn(bool display_item(FILE *out, struct Item *item))
 {
     switch (item->tag)
     {
-    case ITEM_FN_DECL:
-        return display_fn_signature(out, item->as.fn_decl.name,
-                                    &item->as.fn_decl.param_types,
-                                    item->as.fn_decl.ret_type) &&
-               fprintf_s(out, ";\n\n") >= 0;
     case ITEM_FN_DEF:
         return display_fn_signature(out, item->as.fn_def.name,
                                     &item->as.fn_def.params,
@@ -863,10 +850,6 @@ fn(void translation_unit_push_item(struct TranslationUnit *tu, struct Item *item
     case ITEM_FN_DEF:
         list_push(&tu->fn_defns, item);
         return;
-
-    case ITEM_FN_DECL:
-        fprintf_s(stderr, "[INFO] fn declarations are no longer needed.\n");
-        return;
     }
 }
 
@@ -968,8 +951,7 @@ fn(bool display_translation_unit(FILE *out, struct TranslationUnit *tu))
            fprintf_s(out, "\n#endif // PARASITIC_C_FILE__%X\n", tu->id);
 }
 
-// item ::= function_decl
-//        | function_def
+// item ::= function_def
 //        | global_def
 //        | named_struct_or_union_decl
 //        | named_enum_decl
@@ -977,31 +959,6 @@ fn(bool display_translation_unit(FILE *out, struct TranslationUnit *tu))
 fn(struct Item *parse_item(struct Lexer *lxr))
 {
     struct Item *item;
-
-    // function_decl ::= 'fndecl' '(' type 'ident' '(' unnamed_parameter_list? ')' ')' ';'
-    if (lexer_accept(lxr, TOK_FNDECL))
-    {
-        struct Type *ret_type;
-
-        lexer_expect(lxr, TOK_OPEN_PAREN);
-        if (!(ret_type = parse_type(lxr)))
-            todo; // Report error
-        lexer_expect(lxr, TOK_IDENT);
-        char *name = lxr->token;
-        lexer_expect(lxr, TOK_OPEN_PAREN);
-        struct List param_types = parse_param_types(lxr);
-        lexer_expect(lxr, TOK_CLOSE_PAREN);
-        lexer_expect(lxr, TOK_CLOSE_PAREN);
-        lexer_expect(lxr, TOK_SEMI);
-
-        item = malloc(sizeof(*item));
-        item->tag = ITEM_FN_DECL;
-        item->as.fn_decl.name = name;
-        item->as.fn_decl.param_types = param_types;
-        item->as.fn_decl.ret_type = ret_type;
-
-        return item;
-    }
 
     // function_def ::= 'fn' '(' type 'ident' '(' parameter_list? ')' ')' stmt_block
     if (lexer_accept(lxr, TOK_FN))

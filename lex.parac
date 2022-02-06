@@ -3,7 +3,82 @@
 #include <ctype.h>   // isalpha, isalnum, isspace, isdigit
 #include <string.h>  // strncpy_s
 #include <stdbool.h> // true, false, bool
-#include "cheats.h"  // cstr_arr, fn, fndecl, global
+#include "cheats.h"  // cstr_arr, fn, global
+
+enum TokTag
+{
+    // SYMBOLS
+    TOK_OPEN_PAREN,
+    TOK_CLOSE_PAREN,
+    TOK_OPEN_BRACE,
+    TOK_CLOSE_BRACE,
+    TOK_OPEN_BRACK,
+    TOK_CLOSE_BRACK,
+    TOK_POUND,
+    TOK_SEMI,
+    TOK_COLON,
+    TOK_EQUAL,
+    TOK_STAR,
+    TOK_AMPERSAND,
+    TOK_COMMA,       // ,
+    TOK_DOT,         // .
+    TOK_ARROW,       // ->
+    TOK_PLUS_PLUS,   // ++
+    TOK_EQUAL_EQUAL, // ==
+    TOK_NOT_EQUAL,   // !=
+    TOK_AND,         // &&
+    TOK_OR,          // ||
+    TOK_BANG,        // !
+    TOK_GT,          // >
+    TOK_GTE,         // >=
+    TOK_LT,          // <
+    TOK_LTE,         // <=
+    TOK_PLUS,        // +
+    TOK_MINUS,       // -
+
+    // LITERALS
+    TOK_LITERAL_INT,
+    TOK_LITERAL_CHAR,
+    TOK_LITERAL_STRING,
+    TOK_ANGLE_BRACK_FILENAME,
+
+    // KEYWORDS
+    TOK_INT,
+    TOK_CHAR,
+    TOK_BOOL,
+    TOK_VOID,
+    TOK_CSTR_ARR,
+    TOK_FILE, // The `FILE` type.
+
+    TOK_INCLUDE,
+    TOK_RETURN,
+    TOK_IF,
+    TOK_ELSE,
+    TOK_WHILE,
+    TOK_SWITCH,
+    TOK_CASE,
+    TOK_DEFAULT,
+    TOK_BREAK,
+    TOK_CONTINUE,
+    TOK_TRUE,
+    TOK_FALSE,
+    TOK_SIZEOF,
+    TOK_STRUCT,
+    TOK_ENUM,
+    TOK_UNION,
+
+    // CHEAT KEYWORDS
+    TOK_FN,
+    TOK_GLOBAL,
+
+    // IDENTIFIER
+    TOK_IDENT,
+
+    // Special
+    TOK_END_OF_INPUT, // $
+    TOK_LEX_ERROR,
+};
+
 
 global(cstr_arr tok_tag_names) = {
     // SYMBOLS
@@ -68,7 +143,6 @@ global(cstr_arr tok_tag_names) = {
 
     // CHEAT KEYWORDS
     "keyword `fn`",
-    "keyword `fndecl`",
     "keyword `global`",
 
     // IDENTIFIER
@@ -558,9 +632,6 @@ fn(bool lex(struct Lexer *lxr))
     if (lexer_accept_keyword(lxr, "union", TOK_UNION))
         return true;
 
-    if (lexer_accept_keyword(lxr, "fndecl", TOK_FNDECL))
-        return true;
-
     if (lexer_accept_keyword(lxr, "fn", TOK_FN))
         return true;
 
@@ -651,82 +722,6 @@ fn(void lex_all_input(char *input))
             break;
     }
 }
-
-enum TokTag
-{
-    // SYMBOLS
-    TOK_OPEN_PAREN,
-    TOK_CLOSE_PAREN,
-    TOK_OPEN_BRACE,
-    TOK_CLOSE_BRACE,
-    TOK_OPEN_BRACK,
-    TOK_CLOSE_BRACK,
-    TOK_POUND,
-    TOK_SEMI,
-    TOK_COLON,
-    TOK_EQUAL,
-    TOK_STAR,
-    TOK_AMPERSAND,
-    TOK_COMMA,       // ,
-    TOK_DOT,         // .
-    TOK_ARROW,       // ->
-    TOK_PLUS_PLUS,   // ++
-    TOK_EQUAL_EQUAL, // ==
-    TOK_NOT_EQUAL,   // !=
-    TOK_AND,         // &&
-    TOK_OR,          // ||
-    TOK_BANG,        // !
-    TOK_GT,          // >
-    TOK_GTE,         // >=
-    TOK_LT,          // <
-    TOK_LTE,         // <=
-    TOK_PLUS,        // +
-    TOK_MINUS,       // -
-
-    // LITERALS
-    TOK_LITERAL_INT,
-    TOK_LITERAL_CHAR,
-    TOK_LITERAL_STRING,
-    TOK_ANGLE_BRACK_FILENAME,
-
-    // KEYWORDS
-    TOK_INT,
-    TOK_CHAR,
-    TOK_BOOL,
-    TOK_VOID,
-    TOK_CSTR_ARR,
-    TOK_FILE, // The `FILE` type.
-
-    TOK_INCLUDE,
-    TOK_RETURN,
-    TOK_IF,
-    TOK_ELSE,
-    TOK_WHILE,
-    TOK_SWITCH,
-    TOK_CASE,
-    TOK_DEFAULT,
-    TOK_BREAK,
-    TOK_CONTINUE,
-    TOK_TRUE,
-    TOK_FALSE,
-    TOK_SIZEOF,
-    TOK_STRUCT,
-    TOK_ENUM,
-    TOK_UNION,
-
-    // CHEAT KEYWORDS
-    TOK_FN,
-    TOK_FNDECL,
-    TOK_GLOBAL,
-
-    // IDENTIFIER
-    TOK_IDENT,
-
-    // Special
-    TOK_END_OF_INPUT, // $
-    TOK_LEX_ERROR,
-};
-
 
 fn(void test_lex(char *input))
 {
