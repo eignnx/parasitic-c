@@ -17,10 +17,10 @@ fn(void meow())
 
 fn(int main())
 {
-    struct Animal dog;
+    let dog : struct Animal;
     dog.speak = bark;
 
-    struct Animal cat;
+    let cat : struct Animal;
     cat.speak = meow;
 
     dog.speak();

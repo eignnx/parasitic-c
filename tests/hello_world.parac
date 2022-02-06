@@ -21,7 +21,7 @@ fn(int main())
 
     // Test that this doesn't break the lexer. It needs to not parse as an
     // `TOK_ANGLE_BRACKET_FILENAME`.
-    bool condition = 1 < 100 && 100 > 1;
+    let condition : bool = 1 < 100 && 100 > 1;
 
     goodbye();
     return 0;

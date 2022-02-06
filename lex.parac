@@ -70,6 +70,7 @@ enum TokTag
     // CHEAT KEYWORDS
     TOK_FN,
     TOK_GLOBAL,
+    TOK_LET,
 
     // IDENTIFIER
     TOK_IDENT,
@@ -78,7 +79,6 @@ enum TokTag
     TOK_END_OF_INPUT, // $
     TOK_LEX_ERROR,
 };
-
 
 global(cstr_arr tok_tag_names) = {
     // SYMBOLS
@@ -144,6 +144,7 @@ global(cstr_arr tok_tag_names) = {
     // CHEAT KEYWORDS
     "keyword `fn`",
     "keyword `global`",
+    "keyword `let`",
 
     // IDENTIFIER
     "identifier",
@@ -636,6 +637,9 @@ fn(bool lex(struct Lexer *lxr))
         return true;
 
     if (lexer_accept_keyword(lxr, "global", TOK_GLOBAL))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "let", TOK_LET))
         return true;
 
     if (lexer_accept_ident(lxr))

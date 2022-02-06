@@ -36,14 +36,14 @@ fn(fn(int)->bool get_epsilon_fn(int which))
     }
 }
 
-fn(int apply_fn_if_outside_epsilon(fn(int) -> int op, int x, int epsilon_fn_idx))
+fn(int apply_fn_if_outside_epsilon(fn(int)->int op, int x, int epsilon_fn_idx))
 {
-    fn(int) -> bool eps_fn = get_epsilon_fn(epsilon_fn_idx);
+    let eps_fn : fn(int)->bool = get_epsilon_fn(epsilon_fn_idx);
 
     if (eps_fn(x))
         return op(x);
     else
-        return X;
+        return x;
 }
 
 fn(int increment(int x))
@@ -53,6 +53,6 @@ fn(int increment(int x))
 
 fn(int main())
 {
-    int x = apply_fn_if_outside_epsilon(increment, 3, 10);
+    let x : int = apply_fn_if_outside_epsilon(increment, 3, 10);
     printf(">>> %d\n", x);
 }

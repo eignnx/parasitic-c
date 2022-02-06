@@ -1454,16 +1454,20 @@ fn(struct List parse_stmt_list(struct Lexer *lxr))
     return stmts;
 }
 
-// var_decl ::= type 'ident' ('=' expression)? ';'
+// var_decl ::= 'let' 'ident' ':' type ('=' expression)? ';'
 fn(struct Stmt *parse_var_decl(struct Lexer *lxr))
 {
-    struct Type *type;
-
-    if (!(type = parse_type(lxr)))
+    if (!lexer_accept(lxr, TOK_LET))
         return NULL;
 
     lexer_expect(lxr, TOK_IDENT);
     char *name = lxr->token;
+
+    lexer_expect(lxr, TOK_COLON);
+
+    struct Type *type;
+    if (!(type = parse_type(lxr)))
+        todo; // TODO: report error
 
     struct Expr *initializer = NULL;
 
@@ -1477,8 +1481,8 @@ fn(struct Stmt *parse_var_decl(struct Lexer *lxr))
 
     struct Stmt *stmt = malloc(sizeof(*stmt));
     stmt->tag = STMT_VAR_DECL;
-    stmt->as.var_decl.type = type;
     stmt->as.var_decl.name = name;
+    stmt->as.var_decl.type = type;
     stmt->as.var_decl.initializer = initializer;
 
     return stmt;
@@ -2506,7 +2510,7 @@ fn(void test_parse_stmts())
 {
     printf("\n\n----------------------TEST STMTS-----------------------------");
     test_stmt("  {}  ");
-    test_stmt("  { int x = 1; launch_missiles(x, 2, 3); }  ");
+    test_stmt("  { let x: int = 1; launch_missiles(x, 2, 3); }  ");
     test_stmt("  if (123 < 456) { return; }  ");
     test_stmt("  if (need_else_here) { return 100; } else { return -1; }  ");
     test_stmt("  while (i < len) { iterate(); }  ");
@@ -2516,9 +2520,9 @@ fn(void test_parse_stmts())
     test_stmt("  continue;  ");
     test_stmt("  return 123;  ");
     test_stmt("  return;  ");
-    test_stmt("  int x;  ");
-    test_stmt("  FILE *f;  ");
-    test_stmt("  int x = 123;  ");
+    test_stmt("  let x: int;  ");
+    test_stmt("  let f: FILE *;  ");
+    test_stmt("  let x: int = 123;  ");
     test_stmt("  launch_missiles(1, 2, 3);  ");
 }
 
