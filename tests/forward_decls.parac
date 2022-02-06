@@ -3,20 +3,20 @@
 
 fn(int main())
 {
-    let p : struct Point;
+    let p: struct Point;
     p.x = 123;
     p.y = 456;
     print_point(p);
     return 0;
 }
 
-fn(void print_point(struct Point p))
+fn(void print_point(p: struct Point))
 {
     printf("{ .x=%d, .y=%d }\n", p.x, p.y);
 }
 
 struct Point
 {
-    x : int,
-        y : int,
+    x: int,
+    y: int,
 };

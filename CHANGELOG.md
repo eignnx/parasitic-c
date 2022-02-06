@@ -10,7 +10,7 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 
 ### Changed
 - The `let` keyword must now be used to declare local variables.
-- Struct members are now declared `ident: type,` instead of `type ident;`.
+- Struct members and function parameters are now declared `ident: type,` instead of `type ident;`.
 
 ## [0.0.3]
 ### Fixed

@@ -783,20 +783,24 @@ fn(struct List parse_param_types(struct Lexer *lxr))
     return types;
 }
 
-// parameter_list ::= type 'ident' (',' type 'ident')* ','?
+// parameter_list ::= type 'ident' (',' 'ident' ':' type)* ','?
 fn(struct List parse_parameters(struct Lexer *lxr))
 {
     struct List params = list_init();
-    struct Type *type;
 
-    while ((type = parse_type(lxr)))
+    while (lexer_accept(lxr, TOK_IDENT))
     {
-        lexer_expect(lxr, TOK_IDENT);
         char *name = lxr->token;
 
+        lexer_expect(lxr, TOK_COLON);
+
+        struct Type *type;
+        if (!(type = parse_type(lxr)))
+            todo; // TODO: report error
+
         struct FnParam *param = malloc(sizeof(*param));
-        param->type = type;
         param->name = name;
+        param->type = type;
 
         list_push(&params, (void *)param);
 
@@ -2547,7 +2551,7 @@ fn(void test_item(char *input))
 fn(void test_parse_items())
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
-    test_item("  fn(int foo(int x, int y)) { return x + y; }  ");
+    test_item("  fn(int foo(x: int, y: int)) { return x + y; }  ");
     test_item("  fn(void bar()) {}  ");
     test_item("  fn(void three_things()) { a(); b(); c(); }  ");
     test_item("  global(int my_const) = 100;  ");

@@ -3,24 +3,24 @@
 #include <stdbool.h>
 #include "../cheats.h"
 
-fn(bool eps_lt_1000(int x))
+fn(bool eps_lt_1000(x: int))
 {
     return x < 1000;
 }
 
-fn(bool eps_lt_100(int x))
+fn(bool eps_lt_100(x: int))
 {
     return x < 100;
 }
 
-fn(bool eps_lt_10(int x))
+fn(bool eps_lt_10(x: int))
 {
     return x < 10;
 }
 
 global(int X) = -123;
 
-fn(fn(int)->bool get_epsilon_fn(int which))
+fn(fn(int)->bool get_epsilon_fn(which: int))
 {
     switch (which)
     {
@@ -36,7 +36,7 @@ fn(fn(int)->bool get_epsilon_fn(int which))
     }
 }
 
-fn(int apply_fn_if_outside_epsilon(fn(int)->int op, int x, int epsilon_fn_idx))
+fn(int apply_fn_if_outside_epsilon(op: fn(int)->int, x: int, epsilon_fn_idx: int))
 {
     let eps_fn : fn(int)->bool = get_epsilon_fn(epsilon_fn_idx);
 
@@ -46,13 +46,13 @@ fn(int apply_fn_if_outside_epsilon(fn(int)->int op, int x, int epsilon_fn_idx))
         return x;
 }
 
-fn(int increment(int x))
+fn(int increment(x: int))
 {
     return x + 1;
 }
 
 fn(int main())
 {
-    let x : int = apply_fn_if_outside_epsilon(increment, 3, 10);
+    let x: int = apply_fn_if_outside_epsilon(increment, 3, 10);
     printf(">>> %d\n", x);
 }

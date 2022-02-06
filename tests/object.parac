@@ -2,7 +2,7 @@
 
 struct Animal
 {
-    speak : fn(),
+    speak: fn(),
 };
 
 fn(void bark())
@@ -17,10 +17,10 @@ fn(void meow())
 
 fn(int main())
 {
-    let dog : struct Animal;
+    let dog: struct Animal;
     dog.speak = bark;
 
-    let cat : struct Animal;
+    let cat: struct Animal;
     cat.speak = meow;
 
     dog.speak();

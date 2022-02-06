@@ -3,13 +3,13 @@
 #include "../cheats.h"
 #include "goodbye_world.parac"
 
-fn(bool say_hello_to(char *first, char *middle, char *last))
+fn(bool say_hello_to(first: char *, middle: char *, last: char *))
 {
     printf("Hello %s %s %s!\n", first, middle, last);
     return true;
 }
 
-fn(void call_with_sam_i_am(fn(char *, char *, char *)->bool f))
+fn(void call_with_sam_i_am(f: fn(char *, char *, char *)->bool))
 {
     f("Sam", "I", "Am");
 }
