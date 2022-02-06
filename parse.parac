@@ -969,18 +969,26 @@ fn(struct Item *parse_item(struct Lexer *lxr))
 {
     struct Item *item;
 
-    // function_def ::= 'fn' type 'ident' '(' parameter_list? ')' stmt_block
+    // function_def ::= 'fn' 'ident' '(' parameter_list? ')' ('->' type)? stmt_block
     if (lexer_accept(lxr, TOK_FN))
     {
-        struct Type *ret_type;
-
-        if (!(ret_type = parse_type(lxr)))
-            todo; // Report error
         lexer_expect(lxr, TOK_IDENT);
         char *name = lxr->token;
         lexer_expect(lxr, TOK_OPEN_PAREN);
         struct List param_types = parse_parameters(lxr);
         lexer_expect(lxr, TOK_CLOSE_PAREN);
+
+        struct Type *ret_type;
+        if (lexer_accept(lxr, TOK_ARROW))
+        {
+            ret_type = parse_type(lxr);
+        }
+        else
+        {
+            ret_type = malloc(sizeof(*ret_type));
+            ret_type->tag = TYPE_VOID;
+        }
+
         lexer_expect(lxr, TOK_OPEN_BRACE);
         struct List body_stmts = parse_stmt_list(lxr);
         lexer_expect(lxr, TOK_CLOSE_BRACE);
@@ -2549,9 +2557,9 @@ fn(void test_item(char *input))
 fn(void test_parse_items())
 {
     printf("\n\n----------------------TEST ITEMS-----------------------------");
-    test_item("  fn int foo(x: int, y: int) { return x + y; }  ");
-    test_item("  fn void bar() {}  ");
-    test_item("  fn void three_things() { a(); b(); c(); }  ");
+    test_item("  fn foo(x: int, y: int) -> int { return x + y; }  ");
+    test_item("  fn bar() -> void {}  ");
+    test_item("  fn three_things() { a(); b(); c(); }  ");
     test_item("  global(int my_const) = 100;  ");
     test_item("  global(cstr_arr names) = { \"Jenn\", \"Tim\", \"Scott\", };  ");
     test_item("  struct EmptyStruct {};  ");
@@ -2576,7 +2584,7 @@ fn(void test_translation_unit(char *input))
 fn(void test_parse_translation_unit())
 {
     printf("\n\n----------------------TEST TRANSLATION UNITS-----------------");
-    test_translation_unit("#include <stdio.h>\n fn int main()\n{\nreturn 0;\n}");
+    test_translation_unit("#include <stdio.h>\n fn main() -> int\n{\nreturn 0;\n}");
     // test_translation_unit("#include <stdio.h>\n fn(int main())\n{\nBLARGLE 0;\n}");
 }
 

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "../cheats.h"
 
-fn void goodbye()
+fn goodbye()
 {
     printf("Goodbye\n");
 }

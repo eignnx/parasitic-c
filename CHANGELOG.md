@@ -11,7 +11,7 @@ and this project tries to adhere to [Semantic Versioning](https://semver.org/spe
 ### Changed
 - The `let` keyword must now be used to declare local variables.
 - Struct members and function parameters are now declared `ident: type,` instead of `type ident;`.
-- Functions are now defined `fn ret_type name(params...) { stmts... }`.
+- Functions are now defined `fn name(params...) -> ret_type { stmts... }`, or `fn name(params...) { stmts... }` (for void functions).
 
 ## [0.0.3]
 ### Fixed
