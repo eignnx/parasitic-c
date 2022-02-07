@@ -11,15 +11,15 @@
                           // read_to_cstr_buf
 #include "list.parac"     // *
 
-global(bool COMP_LOG) = true;
+global COMP_LOG: bool = true;
 
-fn(void test())
+fn test()
 {
     test_lexer();
     test_parser();
 }
 
-fn(void usage())
+fn usage()
 {
     fprintf_s(stderr, "paracc - A compiler for Parasitic C\n");
     fprintf_s(stderr, "\n");
@@ -35,7 +35,7 @@ fn(void usage())
     exit(1);
 }
 
-fn(void comp_log(char *msg))
+fn comp_log(msg: char *)
 {
     if (!COMP_LOG)
         return;
@@ -47,18 +47,15 @@ fn(void comp_log(char *msg))
     }
 }
 
-fndecl(bool is_parac_file(char *));
-fndecl(bool endswith(char *, char *));
-
 // "parse.parac.c" --> "parse.c"
 // "parse.parac.h" --> "parse.h"
 // "parse.parac" --> "parse.h"
-fn(char *remove_parac_extension(char *filename))
+fn remove_parac_extension(filename: char *) -> char *
 {
-    char *last_slash = strrchr(filename, path_separator());
+    let last_slash: char * = strrchr(filename, path_separator());
     if (!last_slash)
         last_slash = filename;
-    char *extension = strchr(last_slash, '.');
+    let extension: char * = strchr(last_slash, '.');
     if (!extension)
     {
         fprintf_s(stderr, "`%s` doesn't have a file extension\n", filename);
@@ -71,53 +68,53 @@ fn(char *remove_parac_extension(char *filename))
         exit(1);
     }
 
-    int ext_len = strlen(".parac");
-    int filename_len = strlen(filename); // TODO: use strnlen_s
+    let ext_len: int = strlen(".parac");
+    let filename_len: int = strlen(filename); // TODO: use strnlen_s
 
     return format_alloc("%.*s.c", filename_len - ext_len, filename);
 }
 
 struct Compiler
 {
-    struct List processed_files;       // A `List` of `char*`s.
-    struct List files_to_be_processed; // A `List` of `char*`s.
-};
+    processed_files: struct List,        // A `List` of `char*`s.
+    files_to_be_processed: struct List, // A `List` of `char*`s.
+}
 
 // From: https://stackoverflow.com/a/744822/9045161
-fn(bool endswith(char *str, char *suffix))
+fn endswith(str: char *, suffix: char *) -> bool
 {
     if (!str || !suffix)
         return false;
-    int lenstr = strlen(str);
-    int lensuffix = strlen(suffix); // TODO: change these back to size_t
+    let lenstr: int = strlen(str);
+    let lensuffix: int = strlen(suffix); // TODO: change these back to size_t
     if (lensuffix > lenstr)
         return false;
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
-fn(bool is_parac_file(char *filename))
+fn is_parac_file(filename: char *) -> bool
 {
     return endswith(filename, ".parac.c") ||
            endswith(filename, ".parac.h") ||
            endswith(filename, ".parac");
 }
 
-fn(struct List all_included_parac_filenames(struct TranslationUnit *tu))
+fn all_included_parac_filenames(tu: struct TranslationUnit *) -> struct List
 {
-    struct ListNode *node = tu->directives.first;
-    struct List parac_filenames = list_init();
+    let node: struct ListNode * = tu->directives.first;
+    let parac_filenames: struct List = list_init();
 
     while (node)
     {
-        struct Item *item = (struct Item *)node->data;
+        let item: struct Item * = (struct Item *)node->data;
 
         if (item->tag == ITEM_POUND_INCLUDE)
         {
-            char *filename = item->as.pound_include.filename;
+            let filename: char * = item->as.pound_include.filename;
             if (is_parac_file(filename))
             {
                 list_push(&parac_filenames, (void *)filename);
-                char *new_filename = remove_parac_extension(filename);
+                let new_filename: char * = remove_parac_extension(filename);
                 item->as.pound_include.filename = new_filename; // TODO: free the old string
             }
         }
@@ -129,10 +126,10 @@ fn(struct List all_included_parac_filenames(struct TranslationUnit *tu))
 }
 
 // Example: "/asdf/qwer/poiu.txt" --> "/asdf/qwer"
-fn(char *dirname(char *path))
+fn dirname(path: char *) -> char *
 {
-    char *dir = strdup(path);
-    char *last_sep = strrchr(dir, path_separator());
+    let dir: char * = strdup(path);
+    let last_sep: char * = strrchr(dir, path_separator());
     if (!last_sep)
     {
         // TODO: free dir?
@@ -144,29 +141,29 @@ fn(char *dirname(char *path))
 }
 
 // Example: "/asdf/qwer/poiu.txt" --> "poiu.txt"
-fn(char *basename(char *path))
+fn basename(path: char *) -> char *
 {
-    char *last_sep = strrchr(path, path_separator());
+    let last_sep: char * = strrchr(path, path_separator());
     if (!last_sep)
         return "";
     last_sep++; // Skip the path separator.
     return last_sep;
 }
 
-fn(char *path_join(char *p1, char *p2))
+fn path_join(p1: char *, p2: char *) -> char *
 {
     return format_alloc("%s%c%s", p1, path_separator(), p2);
 }
 
-fn(struct List compile_file(char *filename, char *dir_root))
+fn compile_file(filename: char *, dir_root: char *) -> struct List
 {
-    FILE *f;
+    let f: FILE *;
 
     comp_log("[OPENING FILE '");
     comp_log(filename);
     comp_log("']\n");
 
-    char *path = path_join(dir_root, filename);
+    let path: char * = path_join(dir_root, filename);
     if (fopen_s(&f, path, "r") != 0)
     {
         perror("Failed to open file");
@@ -174,20 +171,20 @@ fn(struct List compile_file(char *filename, char *dir_root))
         exit(1);
     }
 
-    struct CStrBuf buf = init_cstr_buf();
+    let buf: struct CStrBuf = init_cstr_buf();
 
     comp_log("[READING FILE TO STRING...]\n");
     read_to_cstr_buf(f, &buf);
     fclose(f);
 
     comp_log("[PARSING INPUT...]\n");
-    struct Lexer lxr = lexer_init(path, buf.buf);
-    struct TranslationUnit tu = parse_translation_unit(&lxr);
-    struct List included_parac_files = all_included_parac_filenames(&tu);
+    let lxr: struct Lexer = lexer_init(path, buf.buf);
+    let tu: struct TranslationUnit = parse_translation_unit(&lxr);
+    let included_parac_files: struct List = all_included_parac_filenames(&tu);
 
-    FILE *out;
+    let out: FILE *;
 
-    char *new_filename = path_join(dir_root, remove_parac_extension(filename));
+    let new_filename: char * = path_join(dir_root, remove_parac_extension(filename));
     comp_log("[OPENING OUTPUT FILE...]\n");
     if (fopen_s(&out, new_filename, "w") != 0)
     {
@@ -207,23 +204,23 @@ fn(struct List compile_file(char *filename, char *dir_root))
     return included_parac_files;
 }
 
-fn(void compile_project(struct Compiler *compiler, char *project_root))
+fn compile_project(compiler: struct Compiler *, project_root: char *)
 {
-    char *base_dir = dirname(project_root);
-    char *project_root_basename = basename(project_root);
+    let base_dir: char * = dirname(project_root);
+    let project_root_basename: char * = basename(project_root);
     list_push(&compiler->files_to_be_processed, (void *)project_root_basename);
 
     while (compiler->files_to_be_processed.first != NULL)
     {
-        char *filename = (char *)list_pop_front(&compiler->files_to_be_processed);
+        let filename: char * = (char *)list_pop_front(&compiler->files_to_be_processed);
 
-        struct List new_files = compile_file(filename, base_dir);
+        let new_files: struct List = compile_file(filename, base_dir);
         list_push(&compiler->processed_files, filename);
 
-        struct ListNode *node = new_files.first;
+        let node: struct ListNode * = new_files.first;
         while (node)
         {
-            char *new_file = (char *)node->data;
+            let new_file: char * = (char *)node->data;
 
             // Don't compile already compiled files.
             if (!list_contains_cstr(&compiler->processed_files, new_file))
@@ -236,9 +233,9 @@ fn(void compile_project(struct Compiler *compiler, char *project_root))
     }
 }
 
-fn(int main(int argc, char **argv))
+fn main(argc: int, argv: char **) -> int
 {
-    struct Compiler compiler;
+    let compiler: struct Compiler;
     compiler.files_to_be_processed = list_init();
     compiler.processed_files = list_init();
 

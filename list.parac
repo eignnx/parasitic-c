@@ -2,29 +2,27 @@
 #include <string.h> // strcmp
 #include "cheats.h"
 
-struct List
-{
-    struct ListNode *first;
-    struct ListNode *last;
-};
+struct List {
+    first: struct ListNode *,
+    last: struct ListNode *,
+}
 
-struct ListNode
-{
-    void *data;
-    struct ListNode *next;
-};
+struct ListNode {
+    data: void *,
+    next: struct ListNode *,
+}
 
-fn(struct List list_init())
+fn list_init() -> struct List
 {
-    struct List list;
+    let list: struct List;
     list.first = NULL;
     list.last = NULL;
     return list;
 }
 
-fn(void list_push(struct List *list, void *data))
+fn list_push(list: struct List *, data: void *)
 {
-    struct ListNode *new_node = malloc(sizeof(*new_node));
+    let new_node: struct ListNode * = malloc(sizeof(*new_node));
     new_node->data = data;
     new_node->next = NULL;
 
@@ -40,17 +38,17 @@ fn(void list_push(struct List *list, void *data))
     }
 }
 
-fn(bool list_is_empty(struct List *list))
+fn list_is_empty(list: struct List *) -> bool
 {
     return list->first == NULL;
 }
 
-fn(void *list_pop_front(struct List *list))
+fn list_pop_front(list: struct List *) -> void *
 {
     if (list_is_empty(list))
         return NULL;
 
-    void *data = list->first->data;
+    let data: void * = list->first->data;
     list->first = list->first->next;
     if (list->first == NULL)
         list->last = NULL;
@@ -58,12 +56,12 @@ fn(void *list_pop_front(struct List *list))
     return data;
 }
 
-fn(bool list_contains_cstr(struct List *haystack, char *needle))
+fn list_contains_cstr(haystack: struct List *, needle: char *) -> bool
 {
-    struct ListNode *node = haystack->first;
+    let node: struct ListNode * = haystack->first;
     while (node)
     {
-        char *element = (char *)node->data;
+        let element: char * = (char *)node->data;
 
         if (strcmp(element, needle) == 0)
             return true;

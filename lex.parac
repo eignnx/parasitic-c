@@ -78,9 +78,9 @@ enum TokTag
     // Special
     TOK_END_OF_INPUT, // $
     TOK_LEX_ERROR,
-};
+}
 
-global(cstr_arr tok_tag_names) = {
+global tok_tag_names: cstr_arr = {
     // SYMBOLS
     "symbol `(`",
     "symbol `)`",
@@ -154,24 +154,21 @@ global(cstr_arr tok_tag_names) = {
     "<tokenization error>",
 };
 
-struct Lexer
-{
-    char *filename;           // The name of the file being lexed.
-    int line;                 // The current line number.
-    enum TokTag tok_tag;      // The TokTag of the current token.
-    enum TokTag next_tok_tag; // The TokTag of the next token.
-    char *token;              // The text of the current token (if relevent).
-    char *next_token;         // The text of the next token (if relevent).
-    char *input;              // A pointer to the current location in the source code.
-    char *old_input;          // A pointer to the location where the last token was lexed.
-    bool expecting_filename;  // If we just lexed `include`, allow `<filename.h>` strings.
-};
+struct Lexer {
+    filename: char *,          // The name of the file being lexed.
+    line: int,                 // The current line number.
+    tok_tag: enum TokTag,      // The TokTag of the current token.
+    next_tok_tag: enum TokTag, // The TokTag of the next token.
+    token: char *,             // The text of the current token (if relevent).
+    next_token: char *,        // The text of the next token (if relevent).
+    input: char *,             // A pointer to the current location in the source code.
+    old_input: char *,         // A pointer to the location where the last token was lexed.
+    expecting_filename: bool,  // If we just lexed `include`, allow `<filename.h>` strings.
+}
 
-fndecl(void lexer_advance(struct Lexer *));
-
-fn(struct Lexer lexer_init(char *filename, char *input))
+fn lexer_init(filename: char *, input: char *) -> struct Lexer
 {
-    struct Lexer lxr;
+    let lxr: struct Lexer;
 
     lxr.filename = filename;
     lxr.line = 1;
@@ -188,10 +185,10 @@ fn(struct Lexer lexer_init(char *filename, char *input))
     return lxr;
 }
 
-fn(bool lexer_starts_with(struct Lexer *lxr, char *target))
+fn lexer_starts_with(lxr: struct Lexer *, target: char *) -> bool
 {
-    int i = 0;
-    int lines = 0;
+    let i: int = 0;
+    let lines: int = 0;
 
     while (true)
     {
@@ -220,9 +217,9 @@ fn(bool lexer_starts_with(struct Lexer *lxr, char *target))
 // "     " --> true
 // "qwerty" --> false
 // "" --> true (OK because EOF is fine)
-fn(bool lexer_accept_space(struct Lexer *lxr))
+fn lexer_accept_space(lxr: struct Lexer *) -> bool
 {
-    bool found_space = false;
+    let found_space: bool = false;
 
     while (true)
     {
@@ -263,16 +260,16 @@ fn(bool lexer_accept_space(struct Lexer *lxr))
 }
 
 // Returns `true` if at end of input.
-fn(bool lexer_allow_whitespace(struct Lexer *lxr))
+fn lexer_allow_whitespace(lxr: struct Lexer *) -> bool
 {
     lexer_accept_space(lxr);
     return *lxr->input == '\0';
 }
 
-fn(bool lexer_accept_ident(struct Lexer *lxr))
+fn lexer_accept_ident(lxr: struct Lexer *) -> bool
 {
-    char *ident_start = lxr->input;
-    int i = 0;
+    let ident_start: char * = lxr->input;
+    let i: int = 0;
     if (isalpha(lxr->input[i]) || lxr->input[i] == '_')
     {
         i++;
@@ -290,7 +287,7 @@ fn(bool lexer_accept_ident(struct Lexer *lxr))
     return false;
 }
 
-fn(bool lexer_accept_symbol(struct Lexer *lxr, char *expected_symbol, enum TokTag expected_tok_tag))
+fn lexer_accept_symbol(lxr: struct Lexer *, expected_symbol: char *, expected_tok_tag: enum TokTag) -> bool
 {
     if (lexer_starts_with(lxr, expected_symbol))
     {
@@ -301,9 +298,9 @@ fn(bool lexer_accept_symbol(struct Lexer *lxr, char *expected_symbol, enum TokTa
     return false;
 }
 
-fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag expected_tok_tag))
+fn lexer_accept_keyword(lxr: struct Lexer *, expected_kw: char *, expected_tok_tag: enum TokTag) -> bool
 {
-    char *old_input = lxr->input;
+    let old_input: char * = lxr->input;
     if (lexer_starts_with(lxr, expected_kw))
     {
         if (!isalnum(lxr->input[0]) && lxr->input[0] != '_')
@@ -330,9 +327,9 @@ fn(bool lexer_accept_keyword(struct Lexer *lxr, char *expected_kw, enum TokTag e
     }
 }
 
-fn(bool lexer_accept_literal_int(struct Lexer *lxr))
+fn lexer_accept_literal_int(lxr: struct Lexer *) -> bool
 {
-    int i = 0;
+    let i: int = 0;
 
     if (lxr->input[i] == '-')
         i++;
@@ -354,9 +351,9 @@ fn(bool lexer_accept_literal_int(struct Lexer *lxr))
     }
 }
 
-fn(bool lexer_accept_literal_char(struct Lexer *lxr))
+fn lexer_accept_literal_char(lxr: struct Lexer *) -> bool
 {
-    int i = 0;
+    let i: int = 0;
 
     if (lxr->input[i] != '\'') // Start quote mark.
         return false;
@@ -378,9 +375,9 @@ fn(bool lexer_accept_literal_char(struct Lexer *lxr))
     return true;
 }
 
-fn(bool lexer_accept_literal_string(struct Lexer *lxr))
+fn lexer_accept_literal_string(lxr: struct Lexer *) -> bool
 {
-    int i = 0;
+    let i: int = 0;
 
     if (lxr->input[i] != '"') // Start quote mark.
         return false;
@@ -417,9 +414,9 @@ fn(bool lexer_accept_literal_string(struct Lexer *lxr))
     return true;
 }
 
-fn(bool lexer_accept_angle_bracket_filename(struct Lexer *lxr))
+fn lexer_accept_angle_bracket_filename(lxr: struct Lexer *) -> bool
 {
-    int i = 0;
+    let i: int = 0;
 
     if (lxr->input[i] != '<') // Start quote mark.
         return false;
@@ -457,7 +454,7 @@ fn(bool lexer_accept_angle_bracket_filename(struct Lexer *lxr))
 }
 
 // Returns `false` if at end of input, `true` otherwise.
-fn(bool lex(struct Lexer *lxr))
+fn lex(lxr: struct Lexer *) -> bool
 {
     if (lexer_allow_whitespace(lxr))
     {
@@ -655,7 +652,7 @@ fn(bool lex(struct Lexer *lxr))
 ///////////////////////////////////////////////////////////////////////////////
 
 // Mutates state of the lexer.
-fn(void lexer_advance(struct Lexer *lxr))
+fn lexer_advance(lxr: struct Lexer *)
 {
     lxr->old_input = lxr->input;
     lxr->token = lxr->next_token;
@@ -665,7 +662,7 @@ fn(void lexer_advance(struct Lexer *lxr))
 
 // If the next token type is equal to the one provided as argument, advances
 // lexer. Otherwise, simply returns false.
-fn(bool lexer_accept(struct Lexer *lxr, enum TokTag tag))
+fn lexer_accept(lxr: struct Lexer *, tag: enum TokTag) -> bool
 {
     // NOTE: we check against `next_tok_tag` (NOT `tok_tag`) in order to set up
     // `tok_tag` for calling code after `lexer_advance` is called here.
@@ -679,7 +676,7 @@ fn(bool lexer_accept(struct Lexer *lxr, enum TokTag tag))
 
 // Requires that the next token type is equal to the one provided as argument.
 // Throws an error and exits if this is not the case.
-fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
+fn lexer_expect(lxr: struct Lexer *, tag: enum TokTag) -> bool
 {
     if (lexer_accept(lxr, tag))
     {
@@ -699,14 +696,14 @@ fn(bool lexer_expect(struct Lexer *lxr, enum TokTag tag))
     }
 }
 
-fn(int dbg_tok_tag(FILE *out, enum TokTag tok_tag))
+fn dbg_tok_tag(out: FILE *, tok_tag: enum TokTag) -> int
 {
     return fprintf_s(out, "TOKEN %s", tok_tag_names[tok_tag]);
 }
 
-fn(void lex_all_input(char *input))
+fn lex_all_input(input: char *)
 {
-    struct Lexer lxr = lexer_init("<test input>", input);
+    let lxr: struct Lexer = lexer_init("<test input>", input);
 
     while (true)
     {
@@ -727,13 +724,13 @@ fn(void lex_all_input(char *input))
     }
 }
 
-fn(void test_lex(char *input))
+fn test_lex(input: char *)
 {
     printf("--------\n");
     lex_all_input(input);
 }
 
-fn(void test_lexer())
+fn test_lexer()
 {
     printf("LEXER TESTS---------------------\n");
     test_lex("  -123  ");

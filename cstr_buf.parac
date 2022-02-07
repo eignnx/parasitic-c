@@ -3,18 +3,17 @@
 #include <string.h> // strnlen_s
 #include "cheats.h" // fn
 
-struct CStrBuf
-{
-    int cap;
-    int nbytes; // The number of non-null bytes stored in `buf`.
-    char *buf;
-};
+struct CStrBuf {
+    cap: int,
+    nbytes: int, // The number of non-null bytes stored in `buf`.
+    buf: char *,
+}
 
-global(int INITIAL_CSTR_BUF_CAP) = 64;
+global INITIAL_CSTR_BUF_CAP: int = 64;
 
-fn(struct CStrBuf init_cstr_buf())
+fn init_cstr_buf() -> struct CStrBuf
 {
-    struct CStrBuf s;
+    let s: struct CStrBuf;
     s.cap = INITIAL_CSTR_BUF_CAP;
     s.buf = (char *)malloc(s.cap);
 
@@ -31,12 +30,12 @@ fn(struct CStrBuf init_cstr_buf())
     return s;
 }
 
-fn(void cstr_buf_realloc_if_full(struct CStrBuf *s))
+fn cstr_buf_realloc_if_full(s: struct CStrBuf *)
 {
-    int space_available = s->cap - s->nbytes;
+    let space_available: int = s->cap - s->nbytes;
     if (space_available <= 0)
     {
-        int new_cap = s->cap + s->cap;
+        let new_cap: int = s->cap + s->cap;
         s->buf = (char *)realloc(s->buf, new_cap);
         if (s->buf == NULL)
         {
@@ -47,16 +46,16 @@ fn(void cstr_buf_realloc_if_full(struct CStrBuf *s))
     }
 }
 
-fn(void read_to_cstr_buf(FILE *f, struct CStrBuf *s))
+fn read_to_cstr_buf(f: FILE *, s: struct CStrBuf *)
 {
     while (!feof(f))
     {
         cstr_buf_realloc_if_full(s);
 
         // TODO: optimize this so that `strlen` doesn't need to be called.
-        char *write_here = s->buf + strnlen_s(s->buf, s->cap);
-        int space_available = s->cap - s->nbytes;
-        char *line = fgets(write_here, space_available, f);
+        let write_here: char * = s->buf + strnlen_s(s->buf, s->cap);
+        let space_available: int = s->cap - s->nbytes;
+        let line: char * = fgets(write_here, space_available, f);
         if (line == NULL && !feof(f))
         {
             perror("Error reading to CStrBuf");
@@ -65,7 +64,7 @@ fn(void read_to_cstr_buf(FILE *f, struct CStrBuf *s))
         if (line == NULL)
             return;
 
-        int line_len = strnlen_s(line, space_available);
+        let line_len: int = strnlen_s(line, space_available);
         s->nbytes = s->nbytes +
                     line_len +
                     sizeof((char)'\0');
