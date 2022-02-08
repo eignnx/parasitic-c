@@ -1,10 +1,11 @@
 #ifndef STD_PARAC_H
 #define STD_PARAC_H
 
-#include <stdio.h>  // fprintf, stderr
-#include <stdlib.h> // malloc
-#include <string.h> // _strdup
-#include <stdarg.h> // va_list, va_start, va_copy, va_end
+#include <stdio.h>   // fprintf, stderr
+#include <stdlib.h>  // malloc
+#include <string.h>  // _strdup
+#include <stdarg.h>  // va_list, va_start, va_copy, va_end
+#include <stdbool.h> //  true, false, bool
 
 // A file for putting temporary C code that can't be parsed
 // by the Parasitic C compiler. This file can be included as

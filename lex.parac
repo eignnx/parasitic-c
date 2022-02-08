@@ -723,21 +723,3 @@ fn lex_all_input(input: char *)
             break;
     }
 }
-
-fn test_lex(input: char *)
-{
-    printf("--------\n");
-    lex_all_input(input);
-}
-
-fn test_lexer()
-{
-    printf("LEXER TESTS---------------------\n");
-    test_lex("  -123  ");
-    test_lex("  \"qwerty pgfdjba\"  ");
-    test_lex("  true  ");
-    test_lex("  false");
-    test_lex("  #include <stdio.h>  ");
-    test_lex("  #include \"stdio.h\"  ");
-    test_lex("  default // comment\n // blah\n default\n\n default  ");
-}

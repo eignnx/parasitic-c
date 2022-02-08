@@ -6,7 +6,7 @@ MOST_STABLE_VERSION=0.1.0
 NEXT_STABLE_VERSION=0.1.1
 PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
-PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac
+PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac test.parac
 PARACC_C_SRCS=cheats.h
 
 head: tgt/paracc-HEAD.exe
@@ -18,6 +18,7 @@ tgt/paracc-HEAD.exe: $(PARACC_PARAC_SRCS) $(PARACC_C_SRCS) tgt
 	$(MV) .\lex.c tgt
 	$(MV) .\cstr_buf.c tgt
 	$(MV) .\list.c tgt
+	$(MV) .\test.c tgt
 	$(CP) .\cheats.h tgt
 	$(CC) $(CC_FLAGS) tgt/paracc.c -o $@
 
