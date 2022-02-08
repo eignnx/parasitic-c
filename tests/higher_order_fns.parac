@@ -18,7 +18,7 @@ fn eps_lt_10(x: int) -> bool
     return x < 10;
 }
 
-global(int X) = -123;
+global X: int = -123;
 
 fn get_epsilon_fn(which: int) -> fn(int) -> bool
 {
