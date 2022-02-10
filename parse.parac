@@ -12,8 +12,8 @@
 
 struct StructMember
 {
-    type: struct Type *,
     field: char *,
+    type: struct Type *,
 }
 
 // struct_member_list ::= struct_member*
@@ -60,6 +60,7 @@ struct Type
         TYPE_FN_PTR,
         TYPE_NAMED_STRUCT_REF,
         TYPE_NAMED_ENUM_REF,
+        TYPE_NAMED_DATA_REF,
 
         // TODO: Remove anonymous types once algebraic data types are impl'd.
         TYPE_ANON_STRUCT,
@@ -204,6 +205,8 @@ fn display_typed_identifier(out: FILE *, type: struct Type *, ident: char *) -> 
         return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_NAMED_ENUM_REF:
         return fprintf_s(out, "enum %s%s%s", type->as.named.name, space, ident) >= 0;
+    case TYPE_NAMED_DATA_REF:
+        return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_ANON_STRUCT:
         return fprintf_s(out, "struct {\n") >= 0 &&
                display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
@@ -386,6 +389,15 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         }
 
         return NULL; // Unreachable.
+    }
+
+    if (lexer_accept(lxr, TOK_DATA))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        type = malloc(sizeof(*type));
+        type->tag = TYPE_NAMED_DATA_REF;
+        type->as.named.name = lxr->token;
+        return type;
     }
 
     // ANON UNION
@@ -580,6 +592,7 @@ struct Item
         ITEM_GLOBAL_DECL,
         ITEM_NAMED_STRUCT_DECL,
         ITEM_NAMED_ENUM_DECL,
+        ITEM_NAMED_DATA_DECL,
         ITEM_POUND_INCLUDE,
     },
 
@@ -605,6 +618,11 @@ struct Item
         named_enum_decl: struct {
             name: char *,
             members: struct List, // A `List` of `char*`s.
+        },
+
+        named_data_decl: struct {
+            name: char *,
+            members: struct List, // A `List` of `DataMember*`s.
         },
 
         pound_include: struct {
@@ -706,6 +724,8 @@ fn display_item(out: FILE *, item: struct Item *) -> bool
         return fprintf_s(out, "enum %s {\n", item->as.named_enum_decl.name) >= 0 &&
                display_enum_members(out, &item->as.named_enum_decl.members) &&
                fprintf_s(out, "};\n\n") >= 0;
+    case ITEM_NAMED_DATA_DECL:
+        return display_named_data_decl(out, item->as.named_data_decl.name, &item->as.named_data_decl.members);
     case ITEM_POUND_INCLUDE:
         if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
@@ -716,6 +736,102 @@ fn display_item(out: FILE *, item: struct Item *) -> bool
             return fprintf_s(out, "#include \"%s\"\n", item->as.pound_include.filename) >= 0;
         }
     }
+}
+
+global PARAC_PREFIX: char * = "P8C";
+
+fn mangle_variant_tag_name(type_name: char *, variant_name: char *) -> char *
+{
+    return format_alloc("%s__%s__TAG__%s", PARAC_PREFIX, type_name, variant_name);
+}
+
+fn mangle_variant_struct_name(type_name: char *, variant_name: char *) -> char *
+{
+    return format_alloc("%s__%s__AS__%s", PARAC_PREFIX, type_name, variant_name);
+}
+
+// Compiles an algebraic `data` type into the following type of struct:
+//
+// struct <name> {
+//     tag: enum {
+//          ...
+//     },
+//     as: union {
+//         data1: struct { ... },
+//         ...
+//     },
+// }
+fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> bool
+{
+    // A `List` of `StructMember`s.
+    let struct_components: struct List = list_init();
+    
+    {
+        let tags: struct List = list_init(); // A list of `char*`s.
+        
+        let iter: struct ListNode * = members->first;
+        while (iter) {
+            let dm: struct DataMember * = (struct DataMember *) iter->data;
+
+            let mangled_name: char* = mangle_variant_tag_name(name, dm->name);
+            list_push(&tags, (void *) mangled_name);
+
+            iter = iter->next;
+        }
+
+        let tags_enum: struct Type * = malloc(sizeof(*tags_enum));
+        tags_enum->tag = TYPE_ANON_ENUM;
+        tags_enum->as.anon_enum.enum_members = tags;
+
+        {
+            let enum_component: struct StructMember * = malloc(sizeof(*enum_component));
+            enum_component->field = "tag";
+            enum_component->type = tags_enum;
+            list_push(&struct_components, (void *) enum_component);
+        }
+    }
+
+    {
+        let struct_members: struct List = list_init(); // a list of `StructMember`s.
+
+        let iter: struct ListNode * = members->first;
+        while (iter) {
+            let dm: struct DataMember * = (struct DataMember *) iter->data;
+
+            let mangled_name: char* = mangle_variant_struct_name(name, dm->name);
+
+            let anon_struct: struct Type * = malloc(sizeof(*anon_struct));
+            anon_struct->tag = TYPE_ANON_STRUCT;
+            anon_struct->as.anon_struct_or_union.struct_members = dm->struct_members;
+
+            let sm: struct StructMember * = malloc(sizeof(*sm));
+            sm->field = mangled_name;
+            sm->type = anon_struct;
+
+            list_push(&struct_members, (void *) sm);
+
+            iter = iter->next;
+        }
+
+        {
+            let union_of_structs: struct Type * = malloc(sizeof(*union_of_structs));
+            union_of_structs->tag = TYPE_ANON_UNION;
+            union_of_structs->as.anon_struct_or_union.struct_members = struct_members;
+
+            let union_member: struct StructMember * = malloc(sizeof(*union_member));
+            union_member->field = "as";
+            union_member->type = union_of_structs;
+
+            list_push(&struct_components, (void *) union_member);
+        }
+    }
+
+    let struct_decl: struct Item * = malloc(sizeof(*struct_decl));
+    struct_decl->tag = ITEM_NAMED_STRUCT_DECL;
+    struct_decl->as.named_struct_decl.name = name;
+    struct_decl->as.named_struct_decl.members = struct_components;
+
+    return display_item(out, struct_decl);
 }
 
 // unnamed_parameter_list ::= type (',' type)* ','?
@@ -800,6 +916,7 @@ fn translation_unit_push_item(tu: struct TranslationUnit *, item: struct Item *)
         return;
 
     case ITEM_NAMED_STRUCT_DECL:
+    case ITEM_NAMED_DATA_DECL:
         list_push(&tu->struct_defns, item);
         return;
 
@@ -849,11 +966,18 @@ fn display_tu_struct_decls(out: FILE *, tu: struct TranslationUnit *) -> bool
     {
         let item: struct Item * = (struct Item *)node->data;
 
-        if (item->tag != ITEM_NAMED_STRUCT_DECL)
+        if (item->tag == ITEM_NAMED_STRUCT_DECL)
+        {
+            if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
+                return false;
+        }
+        if (item->tag == ITEM_NAMED_DATA_DECL)
+        {
+            if (!(fprintf_s(out, "struct %s;\n", item->as.named_data_decl.name) >= 0))
+                return false;
+        }
+        else
             todo;
-
-        if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
-            return false;
 
         node = node->next;
     }
@@ -1028,6 +1152,27 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         return item;
     }
 
+    if (lexer_accept(lxr, TOK_DATA))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        let name: char * = lxr->token;
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        let members: struct List = parse_data_member_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+        if (lexer_accept(lxr, TOK_SEMI))
+        {
+            fprintf_s(stderr, "[WARNING] %s:%d:\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "    A semicolon is not needed after a data definition.\n");
+        }
+
+        let item: struct Item * = malloc(sizeof(*item));
+        item->tag = ITEM_NAMED_DATA_DECL;
+        item->as.named_data_decl.name = name;
+        item->as.named_data_decl.members = members;
+
+        return item;
+    }
+
     // COMPILER DIRECTIVE
     // compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
     if (lexer_accept(lxr, TOK_POUND))
@@ -1072,6 +1217,57 @@ fn parse_enumerator_list(lxr: struct Lexer *) -> struct List
     }
 
     return members;
+}
+
+struct DataMember {
+    name: char*,
+    struct_members: struct List, // A `List` of `StructMember*`s.
+}
+
+// data_member_list ::= data_member*
+// data_member ::= 'ident' '{' struct_member_list '}' ','
+fn parse_data_member_list(lxr: struct Lexer *) -> struct List
+{
+    let list: struct List = list_init();
+
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        let variant_name: char * = lxr->token;
+
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+
+        let struct_members: struct List = list_init();
+
+        while (lexer_accept(lxr, TOK_IDENT))
+        {
+            let field: char * = lxr->token;
+
+            lexer_expect(lxr, TOK_COLON);
+
+            let type: struct Type *;
+            if (!(type = parse_type(lxr)))
+                todo; // TODO: report error
+
+            lexer_expect(lxr, TOK_COMMA);
+
+            let sm: struct StructMember * = malloc(sizeof(*sm));
+            sm->field = field;
+            sm->type = type;
+
+            list_push(&struct_members, (void *)sm);
+        }
+
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+        lexer_expect(lxr, TOK_COMMA);
+
+        let dm: struct DataMember * = malloc(sizeof(*dm));
+        dm->name = variant_name;
+        dm->struct_members = struct_members;
+
+        list_push(&list, (void *)dm);
+    }
+
+    return list;
 }
 
 // #-------------------------------------------------------------------------

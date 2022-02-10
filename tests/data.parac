@@ -1,0 +1,14 @@
+#include <stdio.h> // printf
+
+data Expr {
+    Add { x: data Expr *, y: data Expr *, },
+    Const { value: int, },
+}
+
+fn main() {
+    // let one: data Expr = Expr::Const { value: 1 };
+    // let two: data Expr = Expr::Const { value: 2 };
+    // let e: data Expr = Expr::Add { x: &one, y: &two };
+    // printf("%d + %d\n", e.Expr::Add.x.Expr::Const.value, e.Expr::Add.x.Expr::Const.value);
+    printf("working\n");
+}
