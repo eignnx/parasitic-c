@@ -6,9 +6,12 @@ data Expr {
 }
 
 fn main() {
-    // let one: data Expr = Expr::Const { value: 1 };
-    // let two: data Expr = Expr::Const { value: 2 };
-    // let e: data Expr = Expr::Add { x: &one, y: &two };
-    // printf("%d + %d\n", e.Expr::Add.x.Expr::Const.value, e.Expr::Add.x.Expr::Const.value);
+    let one: data Expr = Expr::Const { value: 1 };
+    let two: data Expr = Expr::Const { value: 2 };
+    let e: data Expr = Expr::Add { x: &one, y: &two };
+    let Expr::Add { x, y } = e;
+    let Expr::Const { xv } = x;
+    let Expr::Const { yv } = y;
+    printf("%d + %d\n", xv, yv);
     printf("working\n");
 }

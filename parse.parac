@@ -1629,7 +1629,10 @@ fn parse_var_decl(lxr: struct Lexer *) -> struct Stmt *
 
     let type: struct Type *;
     if (!(type = parse_type(lxr)))
-        todo; // TODO: report error
+    {
+        fprintf_s(stderr, "You must provide a type after a let binding!\n");
+        exit(1);
+    }
 
     let initializer: struct Expr * = NULL;
 
@@ -1702,6 +1705,7 @@ struct Expr {
         EXPR_LITERAL_CHAR,
         EXPR_LITERAL_STRING,
         EXPR_LITERAL_BOOL,
+        EXPR_LITERAL_VARIANT,
         EXPR_IDENT,
         EXPR_PARENTHESIZED,
         EXPR_ARR_INDEX,
@@ -1750,6 +1754,12 @@ struct Expr {
 
         literal_bool: struct {
             value: bool,
+        },
+
+        literal_variant: struct {
+            type_name: char *,
+            variant_name: char *,
+            initializer_list: struct List, // A `List` of `Kwarg`s.
         },
 
         ident: struct {
@@ -1811,6 +1821,55 @@ fn display_bin_op(out: FILE *, op: char *, x: struct Expr *, y: struct Expr *) -
            display_expr(out, y);
 }
 
+fn display_literal_variant(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    initializer_list: struct List
+) -> bool
+{
+    if (!(fprintf_s(out, "(struct %s) {\n", type_name) >= 0))
+        return false;
+
+    // Output the tag.
+    if (!(fprintf_s(out, ".tag = %s,\n", mangle_variant_tag_name(type_name, variant_name)) >= 0))
+        return false;
+
+    // Output the data.
+    {
+        if (!(fprintf_s(out, ".as = {\n") >= 0))
+            return false;
+
+        if (!(fprintf_s(out, ".%s = {\n", mangle_variant_struct_name(type_name, variant_name)) >= 0))
+            return false;
+
+        let iter: struct ListNode * = initializer_list.first;
+        while (iter)
+        {
+            let kwarg: struct Kwarg * = (struct Kwarg *) iter->data;
+
+            if (!(fprintf_s(out, ".%s = ", kwarg->field) >= 0))
+                return false;
+            
+            if (!display_expr(out, kwarg->expr))
+                return false;
+
+            if (!(fprintf_s(out, ",\n") >= 0))
+                return false;
+
+            iter = iter->next;
+        }
+
+        if (!(fprintf_s(out, "},\n") >= 0))
+            return false;
+    }
+
+    if (!(fprintf_s(out, "},\n") >= 0))
+        return false;
+
+    return fprintf_s(out, "}") >= 0;
+}
+
 fn display_expr(out: FILE *, expr: struct Expr *) -> bool
 {
     switch (expr->tag)
@@ -1826,6 +1885,10 @@ fn display_expr(out: FILE *, expr: struct Expr *) -> bool
             return fprintf_s(out, "true") >= 0;
         else
             return fprintf_s(out, "false") >= 0;
+    case EXPR_LITERAL_VARIANT:
+        return display_literal_variant(out, expr->as.literal_variant.type_name,
+                                            expr->as.literal_variant.variant_name,
+                                            expr->as.literal_variant.initializer_list);
     case EXPR_IDENT:
         return fprintf_s(out, "%s", expr->as.ident.value) >= 0;
     case EXPR_PARENTHESIZED:
@@ -1894,9 +1957,6 @@ fn display_expr(out: FILE *, expr: struct Expr *) -> bool
         return display_bin_op(out, "||", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_ASSIGN:
         return display_bin_op(out, "=", expr->as.binary_op.x, expr->as.binary_op.y);
-    default:
-        printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
-        exit(1);
     }
 }
 
@@ -1928,6 +1988,44 @@ fn display_arglist(out: FILE *, list: struct List *) -> bool
     return true;
 }
 
+// Holds like `sum: a + b` for when initializing a struct.
+struct Kwarg {
+    field: char *,
+    expr: struct Expr *,
+}
+
+// Returns a `List` of `Kwarg`s.
+// Grammar:
+// struct_initializer_list ::=
+//     ('ident' ':' expression (',' 'ident' ':' expression)* ','?)?
+fn parse_struct_initializer_list(lxr: struct Lexer *) -> struct List
+{
+    let list: struct List = list_init();
+
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        let field: char * = lxr->token;
+        lexer_expect(lxr, TOK_COLON);
+        let expr: struct Expr *;
+        if (!(expr = parse_expression(lxr)))
+            todo; // TODO: report error
+
+        let kwarg: struct Kwarg * = malloc(sizeof(*kwarg));
+        kwarg->field = field;
+        kwarg->expr = expr;
+
+        list_push(&list, (void *) kwarg);
+
+        // Allow optional trailing comma.
+        if (lexer_accept(lxr, TOK_COMMA))
+            continue;
+        else
+            break;
+    }
+
+    return list;
+}
+
 // PrimaryExpression
 //    <- StringLiteral
 //     / Constant
@@ -1952,10 +2050,32 @@ fn parse_primary_expression(lxr: struct Lexer *) -> struct Expr *
 
     if (lexer_accept(lxr, TOK_IDENT))
     {
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_IDENT;
-        expr->as.ident.value = lxr->token;
-        return expr;
+        let name: char * = lxr->token;
+
+        // VARIANT LITERAL
+        if (lexer_accept(lxr, TOK_COLON_COLON))
+        {
+            let type_name: char * = name;
+
+            lexer_expect(lxr, TOK_IDENT);
+            let variant_name: char * = lxr->token;
+            lexer_expect(lxr, TOK_OPEN_BRACE);
+            let init_list: struct List = parse_struct_initializer_list(lxr);
+            lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_LITERAL_VARIANT;
+            expr->as.literal_variant.type_name = type_name;
+            expr->as.literal_variant.variant_name = variant_name;
+            expr->as.literal_variant.initializer_list = init_list;
+            return expr;
+        } else {
+            // IDENTIFIER
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_IDENT;
+            expr->as.ident.value = name;
+            return expr;
+        }
     }
 
     if (lexer_accept(lxr, TOK_OPEN_PAREN) &&
