@@ -1284,7 +1284,7 @@ struct Stmt {
         STMT_CONTINUE,
         STMT_RETURN,
         STMT_VAR_DECL,
-        STMT_UNSAFE_PAT_DESTRUCT,
+        STMT_LET_ELSE,
         STMT_EXPRESSION,
     },
 
@@ -1319,7 +1319,7 @@ struct Stmt {
             initializer: struct Expr *, // Nullable ptr.
         },
 
-        unsafe_pat_destruct: struct {
+        let_else: struct {
             type_name: char *,
             variant_name: char *,
             bindings: struct List, // A `List` of `BindingTriple *`s.
@@ -1449,12 +1449,12 @@ fn display_stmt(out: FILE *, stmt: struct Stmt *) -> bool
             return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
                    fprintf_s(out, ";\n", stmt->as.var_decl.name) >= 0;
         }
-    case STMT_UNSAFE_PAT_DESTRUCT:
-        return display_unsafe_pat_destruct(out, stmt->as.unsafe_pat_destruct.type_name,
-                                                stmt->as.unsafe_pat_destruct.variant_name,
-                                                &stmt->as.unsafe_pat_destruct.bindings,
-                                                stmt->as.unsafe_pat_destruct.expr,
-                                                stmt->as.unsafe_pat_destruct.alternative);
+    case STMT_LET_ELSE:
+        return display_let_else(out, stmt->as.let_else.type_name,
+                                                stmt->as.let_else.variant_name,
+                                                &stmt->as.let_else.bindings,
+                                                stmt->as.let_else.expr,
+                                                stmt->as.let_else.alternative);
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
                fprintf_s(out, ";\n") >= 0;
@@ -1479,7 +1479,7 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
     return true;
 }
 
-fn display_unsafe_pat_destruct(
+fn display_let_else(
     out: FILE *,
     type_name: char *,
     variant_name: char *,
@@ -1662,7 +1662,7 @@ fn parse_stmt(lxr: struct Lexer *) -> struct Stmt *
         if (lexer_accept(lxr, TOK_COLON_COLON))
         {
             // UNSAFE PATTERN DESTRUCT STMT
-            return parse_unsafe_pat_destruct_follow(lxr, ident);
+            return parse_let_else_follow(lxr, ident);
         }
 
         todo; // Report error.
@@ -1728,7 +1728,7 @@ fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
 
 // `let Expr::Add { x = x: int, y = y: int, } = e else { stmts... }
 // Expects `let TYPE_NAME::` to be parsed ahead of time!
-fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
+fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
 {
     lexer_expect(lxr, TOK_IDENT);
     let variant_name: char * = lxr->token;
@@ -1794,12 +1794,12 @@ fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> s
     }
 
     let stmt: struct Stmt * = malloc(sizeof(*stmt));
-    stmt->tag = STMT_UNSAFE_PAT_DESTRUCT;
-    stmt->as.unsafe_pat_destruct.type_name = type_name;
-    stmt->as.unsafe_pat_destruct.variant_name = variant_name;
-    stmt->as.unsafe_pat_destruct.bindings = bindings;
-    stmt->as.unsafe_pat_destruct.expr = expr;
-    stmt->as.unsafe_pat_destruct.alternative = alternative;
+    stmt->tag = STMT_LET_ELSE;
+    stmt->as.let_else.type_name = type_name;
+    stmt->as.let_else.variant_name = variant_name;
+    stmt->as.let_else.bindings = bindings;
+    stmt->as.let_else.expr = expr;
+    stmt->as.let_else.alternative = alternative;
 
     return stmt;
 }
