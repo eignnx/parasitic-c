@@ -1754,7 +1754,7 @@ fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> s
         if (!(lexer_accept(lxr, TOK_COLON) &&
               (type = parse_type(lxr))))
         {
-            fprintf_s(stderr, "PARSE_ERROR:\n| at %s:%s\n", filename, line);
+            fprintf_s(stderr, "PARSE_ERROR:\n| at %s:%d\n", filename, line);
             fprintf_s(stderr, "|\n");
             fprintf_s(stderr, "|  expected type annotation after pattern destructuring variable name\n");
             fprintf_s(stderr, "|\n");
