@@ -1284,11 +1284,11 @@ struct Stmt {
         STMT_CONTINUE,
         STMT_RETURN,
         STMT_VAR_DECL,
+        STMT_UNSAFE_PAT_DESTRUCT,
         STMT_EXPRESSION,
     },
 
-    as: union
-    {
+    as: union {
         if_stmt: struct {
             cond: struct Expr *,
             consequent: struct Stmt *,
@@ -1319,6 +1319,13 @@ struct Stmt {
             initializer: struct Expr *, // Nullable ptr.
         },
 
+        unsafe_pat_destruct: struct {
+            type_name: char *,
+            variant_name: char *,
+            bindings: struct List, // A `List` of `BindingTriple *`s.
+            expr: struct Expr *,
+        },
+
         expression: struct {
             expr: struct Expr *,
         },
@@ -1329,6 +1336,12 @@ struct Stmt {
 struct SwitchArm {
     test: struct Expr *, // Nullable. NULL indicates `default` arm.
     stmts: struct List, // A `List` of `Stmts*`s.
+}
+
+struct BindingTriple {
+    field: char *,
+    binder: char *,
+    type: struct Type *,
 }
 
 fn display_switch_arms(out: FILE *, arms: struct List *) -> bool
@@ -1435,6 +1448,11 @@ fn display_stmt(out: FILE *, stmt: struct Stmt *) -> bool
             return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
                    fprintf_s(out, ";\n", stmt->as.var_decl.name) >= 0;
         }
+    case STMT_UNSAFE_PAT_DESTRUCT:
+        return display_unsafe_pat_destruct(out, stmt->as.unsafe_pat_destruct.type_name,
+                                                stmt->as.unsafe_pat_destruct.variant_name,
+                                                &stmt->as.unsafe_pat_destruct.bindings,
+                                                stmt->as.unsafe_pat_destruct.expr);
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
                fprintf_s(out, ";\n") >= 0;
@@ -1456,6 +1474,51 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
         node = node->next;
     }
 
+    return true;
+}
+
+fn display_unsafe_pat_destruct(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    bindings: struct List *,
+    expr: struct Expr *,
+) -> bool
+{
+    // First check that it is the expected variant.
+    {
+        let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
+        if (!(fprintf_s(out, "if ((") >= 0 &&
+              display_expr(out, expr) &&
+              fprintf_s(out, ").tag != %s) {\n", tag_name) >= 0 &&
+              fprintf_s(out, "   puts(\"BAD VARIANT DESTRUCTURING!\\n\");\n") >= 0 &&
+              fprintf_s(out, "   exit(1);\n") >= 0 &&
+              fprintf_s(out, "}\n") >= 0))
+            return false;
+    }
+
+    // Then destructure the variant into bindings.
+    let iter: struct ListNode * = bindings->first;
+    while (iter)
+    {
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+
+        if (!display_typed_identifier(out, bt->type, bt->binder))
+            return false;
+
+        if (!(fprintf_s(out, " = (") >= 0))
+            return false;
+
+        if (!display_expr(out, expr))
+            return false;
+
+        let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
+        if (!(fprintf_s(out, ").as.%s.%s;", variant_struct_name, bt->field) >= 0))
+            return false;
+        
+
+        iter = iter->next;
+    }
     return true;
 }
 
@@ -1584,9 +1647,25 @@ fn parse_stmt(lxr: struct Lexer *) -> struct Stmt *
         return stmt;
     }
 
-    // VARIABLE DECLARATION STMT
-    if ((stmt = parse_var_decl(lxr)))
-        return stmt;
+    if (lexer_accept(lxr, TOK_LET))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        let ident: char * = lxr->token;
+
+        if (lexer_accept(lxr, TOK_COLON))
+        {
+            // VARIABLE DECLARATION STMT
+            return parse_var_decl_follow(lxr, ident);
+        }
+
+        if (lexer_accept(lxr, TOK_COLON_COLON))
+        {
+            // UNSAFE PATTERN DESTRUCT STMT
+            return parse_unsafe_pat_destruct_follow(lxr, ident);
+        }
+
+        todo; // Report error.
+    }
 
     // EXPRESSION STMT
     let expr: struct Expr *;
@@ -1617,16 +1696,9 @@ fn parse_stmt_list(lxr: struct Lexer *) -> struct List
 }
 
 // var_decl ::= 'let' 'ident' ':' type ('=' expression)? ';'
-fn parse_var_decl(lxr: struct Lexer *) -> struct Stmt *
+// Expects `let NAME:` to be parsed ahead of time!
+fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
 {
-    if (!lexer_accept(lxr, TOK_LET))
-        return NULL;
-
-    lexer_expect(lxr, TOK_IDENT);
-    let name: char * = lxr->token;
-
-    lexer_expect(lxr, TOK_COLON);
-
     let type: struct Type *;
     if (!(type = parse_type(lxr)))
     {
@@ -1649,6 +1721,72 @@ fn parse_var_decl(lxr: struct Lexer *) -> struct Stmt *
     stmt->as.var_decl.name = name;
     stmt->as.var_decl.type = type;
     stmt->as.var_decl.initializer = initializer;
+
+    return stmt;
+}
+
+// `let Expr::Add { x = x: int, y = y: int, } = e;
+// Expects `let TYPE_NAME::` to be parsed ahead of time!
+fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_IDENT);
+    let variant_name: char * = lxr->token;
+
+    lexer_expect(lxr, TOK_OPEN_BRACE);
+
+    let bindings: struct List = list_init();
+
+    while (true)
+    {
+        if (!(lexer_accept(lxr, TOK_IDENT)))
+            break;
+
+        let field: char * = lxr->token;
+
+        lexer_expect(lxr, TOK_EQUAL);
+        lexer_expect(lxr, TOK_IDENT);
+        let binder: char * = lxr->token;
+
+        let filename: char * = lxr->filename;
+        let line: int = lxr->line;
+        let type: struct Type *;
+        if (!(lexer_accept(lxr, TOK_COLON) &&
+              (type = parse_type(lxr))))
+        {
+            fprintf_s(stderr, "PARSE_ERROR:\n| at %s:%s\n", filename, line);
+            fprintf_s(stderr, "|\n");
+            fprintf_s(stderr, "|  expected type annotation after pattern destructuring variable name\n");
+            fprintf_s(stderr, "|\n");
+            fprintf_s(stderr, "|> `%.20s`\n", lxr->old_input);
+            exit(1);
+        }
+
+        let bt: struct BindingTriple * = malloc(sizeof(*bt));
+        bt->field = field;
+        bt->binder = binder;
+        bt->type = type;
+
+        list_push(&bindings, (void *) bt);
+
+        if (!(lexer_accept(lxr, TOK_COMMA)))
+            break;
+    }
+
+    lexer_expect(lxr, TOK_CLOSE_BRACE);
+    lexer_expect(lxr, TOK_EQUAL);
+
+    let expr: struct Expr *;
+    if (!(expr = parse_expression(lxr)))
+        todo; // Report error.
+
+    lexer_expect(lxr, TOK_SEMI);
+
+    let stmt: struct Stmt * = malloc(sizeof(*stmt));
+    stmt->tag = STMT_UNSAFE_PAT_DESTRUCT;
+    stmt->as.unsafe_pat_destruct.type_name = type_name;
+    stmt->as.unsafe_pat_destruct.variant_name = variant_name;
+    stmt->as.unsafe_pat_destruct.bindings = bindings;
+    stmt->as.unsafe_pat_destruct.expr = expr;
 
     return stmt;
 }
