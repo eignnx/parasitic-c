@@ -1324,6 +1324,7 @@ struct Stmt {
             variant_name: char *,
             bindings: struct List, // A `List` of `BindingTriple *`s.
             expr: struct Expr *,
+            alternative: struct Stmt *,
         },
 
         expression: struct {
@@ -1452,7 +1453,8 @@ fn display_stmt(out: FILE *, stmt: struct Stmt *) -> bool
         return display_unsafe_pat_destruct(out, stmt->as.unsafe_pat_destruct.type_name,
                                                 stmt->as.unsafe_pat_destruct.variant_name,
                                                 &stmt->as.unsafe_pat_destruct.bindings,
-                                                stmt->as.unsafe_pat_destruct.expr);
+                                                stmt->as.unsafe_pat_destruct.expr,
+                                                stmt->as.unsafe_pat_destruct.alternative);
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
                fprintf_s(out, ";\n") >= 0;
@@ -1483,6 +1485,7 @@ fn display_unsafe_pat_destruct(
     variant_name: char *,
     bindings: struct List *,
     expr: struct Expr *,
+    alternative: struct Stmt *,
 ) -> bool
 {
     // First check that it is the expected variant.
@@ -1490,10 +1493,8 @@ fn display_unsafe_pat_destruct(
         let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
         if (!(fprintf_s(out, "if ((") >= 0 &&
               display_expr(out, expr) &&
-              fprintf_s(out, ").tag != %s) {\n", tag_name) >= 0 &&
-              fprintf_s(out, "   puts(\"BAD VARIANT DESTRUCTURING!\\n\");\n") >= 0 &&
-              fprintf_s(out, "   exit(1);\n") >= 0 &&
-              fprintf_s(out, "}\n") >= 0))
+              fprintf_s(out, ").tag != %s)", tag_name) >= 0 &&
+              display_stmt(out, alternative)))
             return false;
     }
 
@@ -1725,7 +1726,7 @@ fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
     return stmt;
 }
 
-// `let Expr::Add { x = x: int, y = y: int, } = e;
+// `let Expr::Add { x = x: int, y = y: int, } = e else { stmts... }
 // Expects `let TYPE_NAME::` to be parsed ahead of time!
 fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
 {
@@ -1779,7 +1780,18 @@ fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> s
     if (!(expr = parse_expression(lxr)))
         todo; // Report error.
 
-    lexer_expect(lxr, TOK_SEMI);
+    lexer_expect(lxr, TOK_ELSE);
+
+    let alternative: struct Stmt *;
+    {
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        let stmts: struct List = parse_stmt_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+        alternative = malloc(sizeof(*alternative));
+        alternative->tag = STMT_BLOCK;
+        alternative->as.block.stmts = stmts;
+    }
 
     let stmt: struct Stmt * = malloc(sizeof(*stmt));
     stmt->tag = STMT_UNSAFE_PAT_DESTRUCT;
@@ -1787,6 +1799,7 @@ fn parse_unsafe_pat_destruct_follow(lxr: struct Lexer *, type_name: char *) -> s
     stmt->as.unsafe_pat_destruct.variant_name = variant_name;
     stmt->as.unsafe_pat_destruct.bindings = bindings;
     stmt->as.unsafe_pat_destruct.expr = expr;
+    stmt->as.unsafe_pat_destruct.alternative = alternative;
 
     return stmt;
 }

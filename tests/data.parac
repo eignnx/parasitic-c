@@ -1,5 +1,4 @@
 #include <stdio.h> // printf
-#include <stdlib.h> // exit
 
 data Expr {
     Add { x: data Expr *, y: data Expr *, },
@@ -10,9 +9,15 @@ fn main() -> int {
     let one: data Expr = Expr::Const { value: 1 };
     let two: data Expr = Expr::Const { value: 2 };
     let e: data Expr = Expr::Add { x: &one, y: &two };
-    let Expr::Add { x = x: struct Expr *, y = y: struct Expr * } = e;
-    let Expr::Const { value = xv: int } = *x;
-    let Expr::Const { value = yv: int } = *y;
+    let Expr::Add { x = x: struct Expr *, y = y: struct Expr * } = e else {
+        return 1;
+    }
+    let Expr::Const { value = xv: int } = *x else {
+        return 2;
+    }
+    let Expr::Const { value = yv: int } = *y else {
+        return 3;
+    }
     printf("%d + %d\n", xv, yv);
     printf("working\n");
     return 0;
