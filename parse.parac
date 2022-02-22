@@ -1284,6 +1284,7 @@ struct Stmt {
         STMT_CONTINUE,
         STMT_RETURN,
         STMT_VAR_DECL,
+        STMT_IF_LET,
         STMT_LET_ELSE,
         STMT_EXPRESSION,
     },
@@ -1317,6 +1318,15 @@ struct Stmt {
             type: struct Type *,
             name: char *,
             initializer: struct Expr *, // Nullable ptr.
+        },
+
+        if_let: struct {
+            type_name: char *,
+            variant_name: char *,
+            bindings: struct List, // A `List` of `BindingTriple *`s.
+            expr: struct Expr *,
+            consequent: struct Stmt *,
+            alternative: struct Stmt *, // Nullable pointer!
         },
 
         let_else: struct {
@@ -1449,12 +1459,19 @@ fn display_stmt(out: FILE *, stmt: struct Stmt *) -> bool
             return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
                    fprintf_s(out, ";\n", stmt->as.var_decl.name) >= 0;
         }
+    case STMT_IF_LET:
+        return display_if_let(out, stmt->as.if_let.type_name,
+                                   stmt->as.if_let.variant_name,
+                                   &stmt->as.if_let.bindings,
+                                   stmt->as.if_let.expr,
+                                   stmt->as.if_let.consequent,
+                                   stmt->as.if_let.alternative);
     case STMT_LET_ELSE:
         return display_let_else(out, stmt->as.let_else.type_name,
-                                                stmt->as.let_else.variant_name,
-                                                &stmt->as.let_else.bindings,
-                                                stmt->as.let_else.expr,
-                                                stmt->as.let_else.alternative);
+                                     stmt->as.let_else.variant_name,
+                                     &stmt->as.let_else.bindings,
+                                     stmt->as.let_else.expr,
+                                     stmt->as.let_else.alternative);
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
                fprintf_s(out, ";\n") >= 0;
@@ -1474,6 +1491,71 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
             return false;
 
         node = node->next;
+    }
+
+    return true;
+}
+
+fn display_if_let(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    bindings: struct List *,
+    expr: struct Expr *,
+    consequent: struct Stmt *,
+    alternative: struct Stmt *,
+) -> bool
+{
+    // First check that it is the expected variant.
+    {
+        let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
+        if (!(fprintf_s(out, "if ((") >= 0 &&
+              display_expr(out, expr) &&
+              fprintf_s(out, ").tag == %s) {", tag_name) >= 0))
+            return false;
+    }
+
+    // If so, destructure the variant into bindings.
+    let iter: struct ListNode * = bindings->first;
+    while (iter)
+    {
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+
+        if (!display_typed_identifier(out, bt->type, bt->binder))
+            return false;
+
+        if (!(fprintf_s(out, " = (") >= 0))
+            return false;
+
+        if (!display_expr(out, expr))
+            return false;
+
+        let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
+        if (!(fprintf_s(out, ").as.%s.%s;", variant_struct_name, bt->field) >= 0))
+            return false;
+        
+
+        iter = iter->next;
+    }
+
+    // Perform the consequent statements.
+    if (!display_stmt(out, consequent))
+        return false;
+
+    if (!(fprintf_s(out, "\n}") >= 0))
+        return false;
+
+    // If there is an alternative, add an `else` branch.
+    if (alternative != NULL)
+    {
+        if (!(fprintf_s(out, " else {\n") >= 0))
+            return false;
+
+        if (!display_stmt(out, alternative))
+            return false;
+
+        if (!(fprintf_s(out, "}\n") >= 0))
+            return false;
     }
 
     return true;
@@ -1556,26 +1638,32 @@ fn parse_stmt(lxr: struct Lexer *) -> struct Stmt *
         return stmt;
     }
 
-    // IF STMT
     if (lexer_accept(lxr, TOK_IF))
     {
-        lexer_expect(lxr, TOK_OPEN_PAREN);
-        let cond: struct Expr * = parse_expression(lxr);
-        lexer_expect(lxr, TOK_CLOSE_PAREN);
-        let consequent: struct Stmt * = parse_stmt(lxr);
+        if (lexer_accept(lxr, TOK_LET))
+        {
+            // IF-LET STMT
+            return parse_if_let_follow(lxr);
+        } else {
+            // IF STMT
+            lexer_expect(lxr, TOK_OPEN_PAREN);
+            let cond: struct Expr * = parse_expression(lxr);
+            lexer_expect(lxr, TOK_CLOSE_PAREN);
+            let consequent: struct Stmt * = parse_stmt(lxr);
 
-        let alternative: struct Stmt * = NULL;
-        if (lexer_accept(lxr, TOK_ELSE))
-            if (!(alternative = parse_stmt(lxr)))
-                return NULL; // TODO: report error here
+            let alternative: struct Stmt * = NULL;
+            if (lexer_accept(lxr, TOK_ELSE))
+                if (!(alternative = parse_stmt(lxr)))
+                    return NULL; // TODO: report error here
 
-        stmt = malloc(sizeof(*stmt));
-        stmt->tag = STMT_IF;
-        stmt->as.if_stmt.cond = cond;
-        stmt->as.if_stmt.consequent = consequent;
-        stmt->as.if_stmt.alternative = alternative;
+            stmt = malloc(sizeof(*stmt));
+            stmt->tag = STMT_IF;
+            stmt->as.if_stmt.cond = cond;
+            stmt->as.if_stmt.consequent = consequent;
+            stmt->as.if_stmt.alternative = alternative;
 
-        return stmt;
+            return stmt;
+        }
     }
 
     // WHILE STMT
@@ -1726,13 +1814,10 @@ fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
     return stmt;
 }
 
-// `let Expr::Add { x = x: int, y = y: int, } = e else { stmts... }
-// Expects `let TYPE_NAME::` to be parsed ahead of time!
-fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
+// Parses: `{ x = my_x: int, y = my_y: int, ... }`
+// Returns a `List` of `BindingTriple *`s.
+fn parse_struct_pattern_bindings(lxr: struct Lexer *) -> struct List
 {
-    lexer_expect(lxr, TOK_IDENT);
-    let variant_name: char * = lxr->token;
-
     lexer_expect(lxr, TOK_OPEN_BRACE);
 
     let bindings: struct List = list_init();
@@ -1774,6 +1859,77 @@ fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt 
     }
 
     lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+    return bindings;
+}
+
+fn parse_stmt_block(lxr: struct Lexer *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_OPEN_BRACE);
+    let stmts: struct List = parse_stmt_list(lxr);
+    lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+    let block: struct Stmt * = malloc(sizeof(*block));
+    block->tag = STMT_BLOCK;
+    block->as.block.stmts = stmts;
+
+    return block;
+}
+
+// `if let Expr::Add { x = my_x: int, y = my_y: int, } = e {
+//      consequent...
+//  } else {
+//      alternative...
+//  }`
+// The else branch and alternative are optional.
+// NOTE: Expects `if` and `let` to have been parsed already!
+fn parse_if_let_follow(lxr: struct Lexer *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_IDENT);
+    let type_name: char * = lxr->token;
+
+    lexer_expect(lxr, TOK_COLON_COLON);
+
+    lexer_expect(lxr, TOK_IDENT);
+    let variant_name: char * = lxr->token;
+
+    let bindings: struct List = parse_struct_pattern_bindings(lxr);
+
+    lexer_expect(lxr, TOK_EQUAL);
+
+    let expr: struct Expr *;
+    if (!(expr = parse_expression(lxr)))
+        todo; // Report error.
+
+    let consequent: struct Stmt * = parse_stmt_block(lxr);
+
+    let alternative: struct Stmt * = NULL;
+    if (lexer_accept(lxr, TOK_ELSE))
+    {
+        alternative = parse_stmt_block(lxr);
+    }
+
+    let stmt: struct Stmt * = malloc(sizeof(*stmt));
+    stmt->tag = STMT_IF_LET;
+    stmt->as.if_let.type_name = type_name;
+    stmt->as.if_let.variant_name = variant_name;
+    stmt->as.if_let.bindings = bindings;
+    stmt->as.if_let.expr = expr;
+    stmt->as.if_let.alternative = alternative;
+    stmt->as.if_let.consequent = consequent;
+
+    return stmt;
+}
+
+// `let Expr::Add { x = x: int, y = y: int, } = e else { stmts... }
+// Expects `let TYPE_NAME::` to be parsed ahead of time!
+fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_IDENT);
+    let variant_name: char * = lxr->token;
+
+    let bindings: struct List = parse_struct_pattern_bindings(lxr);
+
     lexer_expect(lxr, TOK_EQUAL);
 
     let expr: struct Expr *;
@@ -1782,16 +1938,7 @@ fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt 
 
     lexer_expect(lxr, TOK_ELSE);
 
-    let alternative: struct Stmt *;
-    {
-        lexer_expect(lxr, TOK_OPEN_BRACE);
-        let stmts: struct List = parse_stmt_list(lxr);
-        lexer_expect(lxr, TOK_CLOSE_BRACE);
-
-        alternative = malloc(sizeof(*alternative));
-        alternative->tag = STMT_BLOCK;
-        alternative->as.block.stmts = stmts;
-    }
+    let alternative: struct Stmt * = parse_stmt_block(lxr);
 
     let stmt: struct Stmt * = malloc(sizeof(*stmt));
     stmt->tag = STMT_LET_ELSE;

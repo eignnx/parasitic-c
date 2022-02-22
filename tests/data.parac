@@ -18,6 +18,13 @@ fn main() -> int {
     let Expr::Const { value = yv: int } = *y else {
         return 3;
     }
+
+    if let Expr::Const { value = my_value: int } = *y {
+        printf("y = %d\n", my_value);
+    } else {
+        printf("wrong variant :(\n");
+    }
+
     printf("%d + %d\n", xv, yv);
     printf("working\n");
     return 0;
