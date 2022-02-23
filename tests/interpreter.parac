@@ -1,0 +1,34 @@
+#include <stdio.h>
+
+data Tm {
+    Int { value: int, },
+    Add { x: data Tm *, y: data Tm *, },
+    Print { arg: data Tm *, },
+}
+
+fn eval(tm: data Tm *) -> int {
+    if let Tm::Int { value = v: int } = *tm {
+        return v;
+    }
+    if let Tm::Print { arg = arg: data Tm * } = *tm {
+        let res: int = eval(arg);
+        printf("%d\n", res);
+        return res;
+    }
+    if let Tm::Add { x = x: data Tm *, y = y: data Tm * } = *tm {
+        let xx: int = eval(x);
+        let yy: int = eval(y);
+        return xx + yy;
+    }
+    return 0;
+}
+
+fn main() -> int {
+    let one: data Tm = Tm::Int { value: 1 };
+    let two: data Tm = Tm::Int { value: 2 };
+    let sum: data Tm = Tm::Add { x: &one, y: &two };
+    let put: data Tm = Tm::Print { arg: &sum };
+    let res: int = eval(&put);
+    printf("result = %d\n", res);
+    return 0;
+}
