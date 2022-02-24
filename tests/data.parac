@@ -1,0 +1,31 @@
+#include <stdio.h> // printf
+
+data Expr {
+    Add { x: data Expr *, y: data Expr *, },
+    Const { value: int, },
+}
+
+fn main() -> int {
+    let one: data Expr = Expr::Const { value: 1 };
+    let two: data Expr = Expr::Const { value: 2 };
+    let e: data Expr = Expr::Add { x: &one, y: &two };
+    let Expr::Add { x = x: struct Expr *, y = y: struct Expr * } = e else {
+        return 1;
+    }
+    let Expr::Const { value = xv: int } = *x else {
+        return 2;
+    }
+    let Expr::Const { value = yv: int } = *y else {
+        return 3;
+    }
+
+    if let Expr::Const { value = my_value: int } = *y {
+        printf("y = %d\n", my_value);
+    } else {
+        printf("wrong variant :(\n");
+    }
+
+    printf("%d + %d\n", xv, yv);
+    printf("working\n");
+    return 0;
+}

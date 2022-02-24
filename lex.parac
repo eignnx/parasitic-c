@@ -17,6 +17,7 @@ enum TokTag
     TOK_POUND,
     TOK_SEMI,
     TOK_COLON,
+    TOK_COLON_COLON,
     TOK_EQUAL,
     TOK_STAR,
     TOK_AMPERSAND,
@@ -66,6 +67,7 @@ enum TokTag
     TOK_STRUCT,
     TOK_ENUM,
     TOK_UNION,
+    TOK_DATA,
 
     // CHEAT KEYWORDS
     TOK_FN,
@@ -91,6 +93,7 @@ global tok_tag_names: cstr_arr = {
     "symbol `#`",
     "symbol `;`",
     "symbol `:`",
+    "symbol `::`",
     "symbol `=`",
     "symbol `*`",
     "symbol `&`",
@@ -140,6 +143,7 @@ global tok_tag_names: cstr_arr = {
     "keyword `struct`",
     "keyword `enum`",
     "keyword `union`",
+    "keyword `data`",
 
     // CHEAT KEYWORDS
     "keyword `fn`",
@@ -504,6 +508,9 @@ fn lex(lxr: struct Lexer *) -> bool
     if (lexer_accept_symbol(lxr, ";", TOK_SEMI))
         return true;
 
+    if (lexer_accept_symbol(lxr, "::", TOK_COLON_COLON))
+        return true;
+
     if (lexer_accept_symbol(lxr, ":", TOK_COLON))
         return true;
 
@@ -628,6 +635,9 @@ fn lex(lxr: struct Lexer *) -> bool
         return true;
 
     if (lexer_accept_keyword(lxr, "union", TOK_UNION))
+        return true;
+
+    if (lexer_accept_keyword(lxr, "data", TOK_DATA))
         return true;
 
     if (lexer_accept_keyword(lxr, "fn", TOK_FN))

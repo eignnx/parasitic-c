@@ -12,8 +12,8 @@
 
 struct StructMember
 {
-    type: struct Type *,
     field: char *,
+    type: struct Type *,
 }
 
 // struct_member_list ::= struct_member*
@@ -60,6 +60,7 @@ struct Type
         TYPE_FN_PTR,
         TYPE_NAMED_STRUCT_REF,
         TYPE_NAMED_ENUM_REF,
+        TYPE_NAMED_DATA_REF,
 
         // TODO: Remove anonymous types once algebraic data types are impl'd.
         TYPE_ANON_STRUCT,
@@ -204,6 +205,8 @@ fn display_typed_identifier(out: FILE *, type: struct Type *, ident: char *) -> 
         return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_NAMED_ENUM_REF:
         return fprintf_s(out, "enum %s%s%s", type->as.named.name, space, ident) >= 0;
+    case TYPE_NAMED_DATA_REF:
+        return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
     case TYPE_ANON_STRUCT:
         return fprintf_s(out, "struct {\n") >= 0 &&
                display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
@@ -386,6 +389,15 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         }
 
         return NULL; // Unreachable.
+    }
+
+    if (lexer_accept(lxr, TOK_DATA))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        type = malloc(sizeof(*type));
+        type->tag = TYPE_NAMED_DATA_REF;
+        type->as.named.name = lxr->token;
+        return type;
     }
 
     // ANON UNION
@@ -580,6 +592,7 @@ struct Item
         ITEM_GLOBAL_DECL,
         ITEM_NAMED_STRUCT_DECL,
         ITEM_NAMED_ENUM_DECL,
+        ITEM_NAMED_DATA_DECL,
         ITEM_POUND_INCLUDE,
     },
 
@@ -605,6 +618,11 @@ struct Item
         named_enum_decl: struct {
             name: char *,
             members: struct List, // A `List` of `char*`s.
+        },
+
+        named_data_decl: struct {
+            name: char *,
+            members: struct List, // A `List` of `DataMember*`s.
         },
 
         pound_include: struct {
@@ -706,6 +724,8 @@ fn display_item(out: FILE *, item: struct Item *) -> bool
         return fprintf_s(out, "enum %s {\n", item->as.named_enum_decl.name) >= 0 &&
                display_enum_members(out, &item->as.named_enum_decl.members) &&
                fprintf_s(out, "};\n\n") >= 0;
+    case ITEM_NAMED_DATA_DECL:
+        return display_named_data_decl(out, item->as.named_data_decl.name, &item->as.named_data_decl.members);
     case ITEM_POUND_INCLUDE:
         if (item->as.pound_include.kind == POUND_INCLUDE_ANGLE_BRACKETS)
         {
@@ -716,6 +736,102 @@ fn display_item(out: FILE *, item: struct Item *) -> bool
             return fprintf_s(out, "#include \"%s\"\n", item->as.pound_include.filename) >= 0;
         }
     }
+}
+
+global PARAC_PREFIX: char * = "P8C";
+
+fn mangle_variant_tag_name(type_name: char *, variant_name: char *) -> char *
+{
+    return format_alloc("%s__%s__TAG__%s", PARAC_PREFIX, type_name, variant_name);
+}
+
+fn mangle_variant_struct_name(type_name: char *, variant_name: char *) -> char *
+{
+    return format_alloc("%s__%s__AS__%s", PARAC_PREFIX, type_name, variant_name);
+}
+
+// Compiles an algebraic `data` type into the following type of struct:
+//
+// struct <name> {
+//     tag: enum {
+//          ...
+//     },
+//     as: union {
+//         data1: struct { ... },
+//         ...
+//     },
+// }
+fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> bool
+{
+    // A `List` of `StructMember`s.
+    let struct_components: struct List = list_init();
+    
+    {
+        let tags: struct List = list_init(); // A list of `char*`s.
+        
+        let iter: struct ListNode * = members->first;
+        while (iter) {
+            let dm: struct DataMember * = (struct DataMember *) iter->data;
+
+            let mangled_name: char* = mangle_variant_tag_name(name, dm->name);
+            list_push(&tags, (void *) mangled_name);
+
+            iter = iter->next;
+        }
+
+        let tags_enum: struct Type * = malloc(sizeof(*tags_enum));
+        tags_enum->tag = TYPE_ANON_ENUM;
+        tags_enum->as.anon_enum.enum_members = tags;
+
+        {
+            let enum_component: struct StructMember * = malloc(sizeof(*enum_component));
+            enum_component->field = "tag";
+            enum_component->type = tags_enum;
+            list_push(&struct_components, (void *) enum_component);
+        }
+    }
+
+    {
+        let struct_members: struct List = list_init(); // a list of `StructMember`s.
+
+        let iter: struct ListNode * = members->first;
+        while (iter) {
+            let dm: struct DataMember * = (struct DataMember *) iter->data;
+
+            let mangled_name: char* = mangle_variant_struct_name(name, dm->name);
+
+            let anon_struct: struct Type * = malloc(sizeof(*anon_struct));
+            anon_struct->tag = TYPE_ANON_STRUCT;
+            anon_struct->as.anon_struct_or_union.struct_members = dm->struct_members;
+
+            let sm: struct StructMember * = malloc(sizeof(*sm));
+            sm->field = mangled_name;
+            sm->type = anon_struct;
+
+            list_push(&struct_members, (void *) sm);
+
+            iter = iter->next;
+        }
+
+        {
+            let union_of_structs: struct Type * = malloc(sizeof(*union_of_structs));
+            union_of_structs->tag = TYPE_ANON_UNION;
+            union_of_structs->as.anon_struct_or_union.struct_members = struct_members;
+
+            let union_member: struct StructMember * = malloc(sizeof(*union_member));
+            union_member->field = "as";
+            union_member->type = union_of_structs;
+
+            list_push(&struct_components, (void *) union_member);
+        }
+    }
+
+    let struct_decl: struct Item * = malloc(sizeof(*struct_decl));
+    struct_decl->tag = ITEM_NAMED_STRUCT_DECL;
+    struct_decl->as.named_struct_decl.name = name;
+    struct_decl->as.named_struct_decl.members = struct_components;
+
+    return display_item(out, struct_decl);
 }
 
 // unnamed_parameter_list ::= type (',' type)* ','?
@@ -800,6 +916,7 @@ fn translation_unit_push_item(tu: struct TranslationUnit *, item: struct Item *)
         return;
 
     case ITEM_NAMED_STRUCT_DECL:
+    case ITEM_NAMED_DATA_DECL:
         list_push(&tu->struct_defns, item);
         return;
 
@@ -849,11 +966,18 @@ fn display_tu_struct_decls(out: FILE *, tu: struct TranslationUnit *) -> bool
     {
         let item: struct Item * = (struct Item *)node->data;
 
-        if (item->tag != ITEM_NAMED_STRUCT_DECL)
+        if (item->tag == ITEM_NAMED_STRUCT_DECL)
+        {
+            if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
+                return false;
+        }
+        if (item->tag == ITEM_NAMED_DATA_DECL)
+        {
+            if (!(fprintf_s(out, "struct %s;\n", item->as.named_data_decl.name) >= 0))
+                return false;
+        }
+        else
             todo;
-
-        if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
-            return false;
 
         node = node->next;
     }
@@ -1028,6 +1152,27 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         return item;
     }
 
+    if (lexer_accept(lxr, TOK_DATA))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        let name: char * = lxr->token;
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+        let members: struct List = parse_data_member_list(lxr);
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+        if (lexer_accept(lxr, TOK_SEMI))
+        {
+            fprintf_s(stderr, "[WARNING] %s:%d:\n", lxr->filename, lxr->line);
+            fprintf_s(stderr, "    A semicolon is not needed after a data definition.\n");
+        }
+
+        let item: struct Item * = malloc(sizeof(*item));
+        item->tag = ITEM_NAMED_DATA_DECL;
+        item->as.named_data_decl.name = name;
+        item->as.named_data_decl.members = members;
+
+        return item;
+    }
+
     // COMPILER DIRECTIVE
     // compiler_directive ::= '#' 'include' (angle_bracket_filename | double_quoted_filename)
     if (lexer_accept(lxr, TOK_POUND))
@@ -1074,6 +1219,57 @@ fn parse_enumerator_list(lxr: struct Lexer *) -> struct List
     return members;
 }
 
+struct DataMember {
+    name: char*,
+    struct_members: struct List, // A `List` of `StructMember*`s.
+}
+
+// data_member_list ::= data_member*
+// data_member ::= 'ident' '{' struct_member_list '}' ','
+fn parse_data_member_list(lxr: struct Lexer *) -> struct List
+{
+    let list: struct List = list_init();
+
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        let variant_name: char * = lxr->token;
+
+        lexer_expect(lxr, TOK_OPEN_BRACE);
+
+        let struct_members: struct List = list_init();
+
+        while (lexer_accept(lxr, TOK_IDENT))
+        {
+            let field: char * = lxr->token;
+
+            lexer_expect(lxr, TOK_COLON);
+
+            let type: struct Type *;
+            if (!(type = parse_type(lxr)))
+                todo; // TODO: report error
+
+            lexer_expect(lxr, TOK_COMMA);
+
+            let sm: struct StructMember * = malloc(sizeof(*sm));
+            sm->field = field;
+            sm->type = type;
+
+            list_push(&struct_members, (void *)sm);
+        }
+
+        lexer_expect(lxr, TOK_CLOSE_BRACE);
+        lexer_expect(lxr, TOK_COMMA);
+
+        let dm: struct DataMember * = malloc(sizeof(*dm));
+        dm->name = variant_name;
+        dm->struct_members = struct_members;
+
+        list_push(&list, (void *)dm);
+    }
+
+    return list;
+}
+
 // #-------------------------------------------------------------------------
 // #  A.2.3  Statements
 // #-------------------------------------------------------------------------
@@ -1088,11 +1284,12 @@ struct Stmt {
         STMT_CONTINUE,
         STMT_RETURN,
         STMT_VAR_DECL,
+        STMT_IF_LET,
+        STMT_LET_ELSE,
         STMT_EXPRESSION,
     },
 
-    as: union
-    {
+    as: union {
         if_stmt: struct {
             cond: struct Expr *,
             consequent: struct Stmt *,
@@ -1123,6 +1320,23 @@ struct Stmt {
             initializer: struct Expr *, // Nullable ptr.
         },
 
+        if_let: struct {
+            type_name: char *,
+            variant_name: char *,
+            bindings: struct List, // A `List` of `BindingTriple *`s.
+            expr: struct Expr *,
+            consequent: struct Stmt *,
+            alternative: struct Stmt *, // Nullable pointer!
+        },
+
+        let_else: struct {
+            type_name: char *,
+            variant_name: char *,
+            bindings: struct List, // A `List` of `BindingTriple *`s.
+            expr: struct Expr *,
+            alternative: struct Stmt *,
+        },
+
         expression: struct {
             expr: struct Expr *,
         },
@@ -1133,6 +1347,12 @@ struct Stmt {
 struct SwitchArm {
     test: struct Expr *, // Nullable. NULL indicates `default` arm.
     stmts: struct List, // A `List` of `Stmts*`s.
+}
+
+struct BindingTriple {
+    field: char *,
+    binder: char *,
+    type: struct Type *,
 }
 
 fn display_switch_arms(out: FILE *, arms: struct List *) -> bool
@@ -1239,6 +1459,19 @@ fn display_stmt(out: FILE *, stmt: struct Stmt *) -> bool
             return display_typed_identifier(out, stmt->as.var_decl.type, stmt->as.var_decl.name) &&
                    fprintf_s(out, ";\n", stmt->as.var_decl.name) >= 0;
         }
+    case STMT_IF_LET:
+        return display_if_let(out, stmt->as.if_let.type_name,
+                                   stmt->as.if_let.variant_name,
+                                   &stmt->as.if_let.bindings,
+                                   stmt->as.if_let.expr,
+                                   stmt->as.if_let.consequent,
+                                   stmt->as.if_let.alternative);
+    case STMT_LET_ELSE:
+        return display_let_else(out, stmt->as.let_else.type_name,
+                                     stmt->as.let_else.variant_name,
+                                     &stmt->as.let_else.bindings,
+                                     stmt->as.let_else.expr,
+                                     stmt->as.let_else.alternative);
     case STMT_EXPRESSION:
         return display_expr(out, stmt->as.expression.expr) &&
                fprintf_s(out, ";\n") >= 0;
@@ -1260,6 +1493,135 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
         node = node->next;
     }
 
+    return true;
+}
+
+global TEMP_ID: int = 0;
+
+fn gen_temp() -> char *
+{
+    let name: char * = format_alloc("%s__TEMP_%d", PARAC_PREFIX, TEMP_ID);
+    TEMP_ID = TEMP_ID + 1;
+    return name;
+}
+
+fn display_if_let(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    bindings: struct List *,
+    expr: struct Expr *,
+    consequent: struct Stmt *,
+    alternative: struct Stmt *,
+) -> bool
+{
+    let expr_temp: char * = gen_temp();
+
+    let type: struct Type * = malloc(sizeof(*type));
+    type->tag = TYPE_NAMED_DATA_REF;
+    type->as.named.name = type_name;
+
+    // Save `expr` in a temporary named `expr_temp`.
+    if (!(display_typed_identifier(out, type, expr_temp) &&
+          fprintf_s(out, " = ") >= 0 &&
+          display_expr(out, expr) &&
+          fprintf_s(out, ";\n") >= 0))
+        return false;
+
+
+    // First check that it is the expected variant.
+    {
+        let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
+        if (!(fprintf_s(out, "if (%s.tag == %s) {", expr_temp, tag_name) >= 0))
+            return false;
+    }
+
+    // If so, destructure the variant into bindings.
+    let iter: struct ListNode * = bindings->first;
+    while (iter)
+    {
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+
+        if (!display_typed_identifier(out, bt->type, bt->binder))
+            return false;
+
+        let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
+        if (!(fprintf_s(out, " = %s.as.%s.%s;", expr_temp, variant_struct_name, bt->field) >= 0))
+            return false;
+        
+
+        iter = iter->next;
+    }
+
+    // Perform the consequent statements.
+    if (!display_stmt(out, consequent))
+        return false;
+
+    if (!(fprintf_s(out, "\n}") >= 0))
+        return false;
+
+    // If there is an alternative, add an `else` branch.
+    if (alternative != NULL)
+    {
+        if (!(fprintf_s(out, " else {\n") >= 0))
+            return false;
+
+        if (!display_stmt(out, alternative))
+            return false;
+
+        if (!(fprintf_s(out, "}\n") >= 0))
+            return false;
+    }
+
+    return true;
+}
+
+fn display_let_else(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    bindings: struct List *,
+    expr: struct Expr *,
+    alternative: struct Stmt *,
+) -> bool
+{
+    let expr_temp: char * = gen_temp();
+
+    let type: struct Type * = malloc(sizeof(*type));
+    type->tag = TYPE_NAMED_DATA_REF;
+    type->as.named.name = type_name;
+
+    // Save `expr` in a temporary named `expr_temp`.
+    if (!(display_typed_identifier(out, type, expr_temp) &&
+          fprintf_s(out, " = ") >= 0 &&
+          display_expr(out, expr) &&
+          fprintf_s(out, ";\n") >= 0))
+        return false;
+
+    // First check that it is the expected variant.
+    {
+        let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
+        if (!(fprintf_s(out, "if (%s.tag != %s)", expr_temp, tag_name) >= 0 &&
+              display_stmt(out, alternative)))
+            return false;
+    }
+
+    // Then destructure the variant into bindings.
+    let iter: struct ListNode * = bindings->first;
+    while (iter)
+    {
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+
+        if (!display_typed_identifier(out, bt->type, bt->binder))
+            return false;
+
+        let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
+        if (!(fprintf_s(out, " = %s.as.%s.%s;", expr_temp, variant_struct_name, bt->field) >= 0))
+            return false;
+        
+
+        iter = iter->next;
+    }
     return true;
 }
 
@@ -1296,26 +1658,32 @@ fn parse_stmt(lxr: struct Lexer *) -> struct Stmt *
         return stmt;
     }
 
-    // IF STMT
     if (lexer_accept(lxr, TOK_IF))
     {
-        lexer_expect(lxr, TOK_OPEN_PAREN);
-        let cond: struct Expr * = parse_expression(lxr);
-        lexer_expect(lxr, TOK_CLOSE_PAREN);
-        let consequent: struct Stmt * = parse_stmt(lxr);
+        if (lexer_accept(lxr, TOK_LET))
+        {
+            // IF-LET STMT
+            return parse_if_let_follow(lxr);
+        } else {
+            // IF STMT
+            lexer_expect(lxr, TOK_OPEN_PAREN);
+            let cond: struct Expr * = parse_expression(lxr);
+            lexer_expect(lxr, TOK_CLOSE_PAREN);
+            let consequent: struct Stmt * = parse_stmt(lxr);
 
-        let alternative: struct Stmt * = NULL;
-        if (lexer_accept(lxr, TOK_ELSE))
-            if (!(alternative = parse_stmt(lxr)))
-                return NULL; // TODO: report error here
+            let alternative: struct Stmt * = NULL;
+            if (lexer_accept(lxr, TOK_ELSE))
+                if (!(alternative = parse_stmt(lxr)))
+                    return NULL; // TODO: report error here
 
-        stmt = malloc(sizeof(*stmt));
-        stmt->tag = STMT_IF;
-        stmt->as.if_stmt.cond = cond;
-        stmt->as.if_stmt.consequent = consequent;
-        stmt->as.if_stmt.alternative = alternative;
+            stmt = malloc(sizeof(*stmt));
+            stmt->tag = STMT_IF;
+            stmt->as.if_stmt.cond = cond;
+            stmt->as.if_stmt.consequent = consequent;
+            stmt->as.if_stmt.alternative = alternative;
 
-        return stmt;
+            return stmt;
+        }
     }
 
     // WHILE STMT
@@ -1388,9 +1756,25 @@ fn parse_stmt(lxr: struct Lexer *) -> struct Stmt *
         return stmt;
     }
 
-    // VARIABLE DECLARATION STMT
-    if ((stmt = parse_var_decl(lxr)))
-        return stmt;
+    if (lexer_accept(lxr, TOK_LET))
+    {
+        lexer_expect(lxr, TOK_IDENT);
+        let ident: char * = lxr->token;
+
+        if (lexer_accept(lxr, TOK_COLON))
+        {
+            // VARIABLE DECLARATION STMT
+            return parse_var_decl_follow(lxr, ident);
+        }
+
+        if (lexer_accept(lxr, TOK_COLON_COLON))
+        {
+            // UNSAFE PATTERN DESTRUCT STMT
+            return parse_let_else_follow(lxr, ident);
+        }
+
+        todo; // Report error.
+    }
 
     // EXPRESSION STMT
     let expr: struct Expr *;
@@ -1421,19 +1805,15 @@ fn parse_stmt_list(lxr: struct Lexer *) -> struct List
 }
 
 // var_decl ::= 'let' 'ident' ':' type ('=' expression)? ';'
-fn parse_var_decl(lxr: struct Lexer *) -> struct Stmt *
+// Expects `let NAME:` to be parsed ahead of time!
+fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
 {
-    if (!lexer_accept(lxr, TOK_LET))
-        return NULL;
-
-    lexer_expect(lxr, TOK_IDENT);
-    let name: char * = lxr->token;
-
-    lexer_expect(lxr, TOK_COLON);
-
     let type: struct Type *;
     if (!(type = parse_type(lxr)))
-        todo; // TODO: report error
+    {
+        fprintf_s(stderr, "You must provide a type after a let binding!\n");
+        exit(1);
+    }
 
     let initializer: struct Expr * = NULL;
 
@@ -1450,6 +1830,143 @@ fn parse_var_decl(lxr: struct Lexer *) -> struct Stmt *
     stmt->as.var_decl.name = name;
     stmt->as.var_decl.type = type;
     stmt->as.var_decl.initializer = initializer;
+
+    return stmt;
+}
+
+// Parses: `{ x = my_x: int, y = my_y: int, ... }`
+// Returns a `List` of `BindingTriple *`s.
+fn parse_struct_pattern_bindings(lxr: struct Lexer *) -> struct List
+{
+    lexer_expect(lxr, TOK_OPEN_BRACE);
+
+    let bindings: struct List = list_init();
+
+    while (true)
+    {
+        if (!(lexer_accept(lxr, TOK_IDENT)))
+            break;
+
+        let field: char * = lxr->token;
+
+        lexer_expect(lxr, TOK_EQUAL);
+        lexer_expect(lxr, TOK_IDENT);
+        let binder: char * = lxr->token;
+
+        let filename: char * = lxr->filename;
+        let line: int = lxr->line;
+        let type: struct Type *;
+        if (!(lexer_accept(lxr, TOK_COLON) &&
+              (type = parse_type(lxr))))
+        {
+            fprintf_s(stderr, "PARSE_ERROR:\n| at %s:%d\n", filename, line);
+            fprintf_s(stderr, "|\n");
+            fprintf_s(stderr, "|  expected type annotation after pattern destructuring variable name\n");
+            fprintf_s(stderr, "|\n");
+            fprintf_s(stderr, "|> `%.20s`\n", lxr->old_input);
+            exit(1);
+        }
+
+        let bt: struct BindingTriple * = malloc(sizeof(*bt));
+        bt->field = field;
+        bt->binder = binder;
+        bt->type = type;
+
+        list_push(&bindings, (void *) bt);
+
+        if (!(lexer_accept(lxr, TOK_COMMA)))
+            break;
+    }
+
+    lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+    return bindings;
+}
+
+fn parse_stmt_block(lxr: struct Lexer *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_OPEN_BRACE);
+    let stmts: struct List = parse_stmt_list(lxr);
+    lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+    let block: struct Stmt * = malloc(sizeof(*block));
+    block->tag = STMT_BLOCK;
+    block->as.block.stmts = stmts;
+
+    return block;
+}
+
+// `if let Expr::Add { x = my_x: int, y = my_y: int, } = e {
+//      consequent...
+//  } else {
+//      alternative...
+//  }`
+// The else branch and alternative are optional.
+// NOTE: Expects `if` and `let` to have been parsed already!
+fn parse_if_let_follow(lxr: struct Lexer *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_IDENT);
+    let type_name: char * = lxr->token;
+
+    lexer_expect(lxr, TOK_COLON_COLON);
+
+    lexer_expect(lxr, TOK_IDENT);
+    let variant_name: char * = lxr->token;
+
+    let bindings: struct List = parse_struct_pattern_bindings(lxr);
+
+    lexer_expect(lxr, TOK_EQUAL);
+
+    let expr: struct Expr *;
+    if (!(expr = parse_expression(lxr)))
+        todo; // Report error.
+
+    let consequent: struct Stmt * = parse_stmt_block(lxr);
+
+    let alternative: struct Stmt * = NULL;
+    if (lexer_accept(lxr, TOK_ELSE))
+    {
+        alternative = parse_stmt_block(lxr);
+    }
+
+    let stmt: struct Stmt * = malloc(sizeof(*stmt));
+    stmt->tag = STMT_IF_LET;
+    stmt->as.if_let.type_name = type_name;
+    stmt->as.if_let.variant_name = variant_name;
+    stmt->as.if_let.bindings = bindings;
+    stmt->as.if_let.expr = expr;
+    stmt->as.if_let.alternative = alternative;
+    stmt->as.if_let.consequent = consequent;
+
+    return stmt;
+}
+
+// `let Expr::Add { x = x: int, y = y: int, } = e else { stmts... }
+// Expects `let TYPE_NAME::` to be parsed ahead of time!
+fn parse_let_else_follow(lxr: struct Lexer *, type_name: char *) -> struct Stmt *
+{
+    lexer_expect(lxr, TOK_IDENT);
+    let variant_name: char * = lxr->token;
+
+    let bindings: struct List = parse_struct_pattern_bindings(lxr);
+
+    lexer_expect(lxr, TOK_EQUAL);
+
+    let expr: struct Expr *;
+    if (!(expr = parse_expression(lxr)))
+        todo; // Report error.
+
+    lexer_expect(lxr, TOK_ELSE);
+
+    let alternative: struct Stmt * = parse_stmt_block(lxr);
+
+    let stmt: struct Stmt * = malloc(sizeof(*stmt));
+    stmt->tag = STMT_LET_ELSE;
+    stmt->as.let_else.type_name = type_name;
+    stmt->as.let_else.variant_name = variant_name;
+    stmt->as.let_else.bindings = bindings;
+    stmt->as.let_else.expr = expr;
+    stmt->as.let_else.alternative = alternative;
 
     return stmt;
 }
@@ -1506,6 +2023,7 @@ struct Expr {
         EXPR_LITERAL_CHAR,
         EXPR_LITERAL_STRING,
         EXPR_LITERAL_BOOL,
+        EXPR_LITERAL_VARIANT,
         EXPR_IDENT,
         EXPR_PARENTHESIZED,
         EXPR_ARR_INDEX,
@@ -1554,6 +2072,12 @@ struct Expr {
 
         literal_bool: struct {
             value: bool,
+        },
+
+        literal_variant: struct {
+            type_name: char *,
+            variant_name: char *,
+            initializer_list: struct List, // A `List` of `Kwarg`s.
         },
 
         ident: struct {
@@ -1615,6 +2139,55 @@ fn display_bin_op(out: FILE *, op: char *, x: struct Expr *, y: struct Expr *) -
            display_expr(out, y);
 }
 
+fn display_literal_variant(
+    out: FILE *,
+    type_name: char *,
+    variant_name: char *,
+    initializer_list: struct List
+) -> bool
+{
+    if (!(fprintf_s(out, "(struct %s) {\n", type_name) >= 0))
+        return false;
+
+    // Output the tag.
+    if (!(fprintf_s(out, ".tag = %s,\n", mangle_variant_tag_name(type_name, variant_name)) >= 0))
+        return false;
+
+    // Output the data.
+    {
+        if (!(fprintf_s(out, ".as = {\n") >= 0))
+            return false;
+
+        if (!(fprintf_s(out, ".%s = {\n", mangle_variant_struct_name(type_name, variant_name)) >= 0))
+            return false;
+
+        let iter: struct ListNode * = initializer_list.first;
+        while (iter)
+        {
+            let kwarg: struct Kwarg * = (struct Kwarg *) iter->data;
+
+            if (!(fprintf_s(out, ".%s = ", kwarg->field) >= 0))
+                return false;
+            
+            if (!display_expr(out, kwarg->expr))
+                return false;
+
+            if (!(fprintf_s(out, ",\n") >= 0))
+                return false;
+
+            iter = iter->next;
+        }
+
+        if (!(fprintf_s(out, "},\n") >= 0))
+            return false;
+    }
+
+    if (!(fprintf_s(out, "},\n") >= 0))
+        return false;
+
+    return fprintf_s(out, "}") >= 0;
+}
+
 fn display_expr(out: FILE *, expr: struct Expr *) -> bool
 {
     switch (expr->tag)
@@ -1630,6 +2203,10 @@ fn display_expr(out: FILE *, expr: struct Expr *) -> bool
             return fprintf_s(out, "true") >= 0;
         else
             return fprintf_s(out, "false") >= 0;
+    case EXPR_LITERAL_VARIANT:
+        return display_literal_variant(out, expr->as.literal_variant.type_name,
+                                            expr->as.literal_variant.variant_name,
+                                            expr->as.literal_variant.initializer_list);
     case EXPR_IDENT:
         return fprintf_s(out, "%s", expr->as.ident.value) >= 0;
     case EXPR_PARENTHESIZED:
@@ -1698,9 +2275,6 @@ fn display_expr(out: FILE *, expr: struct Expr *) -> bool
         return display_bin_op(out, "||", expr->as.binary_op.x, expr->as.binary_op.y);
     case EXPR_ASSIGN:
         return display_bin_op(out, "=", expr->as.binary_op.x, expr->as.binary_op.y);
-    default:
-        printf("display_expr is not implemented for EXPR tag %d!\n", expr->tag);
-        exit(1);
     }
 }
 
@@ -1732,6 +2306,44 @@ fn display_arglist(out: FILE *, list: struct List *) -> bool
     return true;
 }
 
+// Holds like `sum: a + b` for when initializing a struct.
+struct Kwarg {
+    field: char *,
+    expr: struct Expr *,
+}
+
+// Returns a `List` of `Kwarg`s.
+// Grammar:
+// struct_initializer_list ::=
+//     ('ident' ':' expression (',' 'ident' ':' expression)* ','?)?
+fn parse_struct_initializer_list(lxr: struct Lexer *) -> struct List
+{
+    let list: struct List = list_init();
+
+    while (lexer_accept(lxr, TOK_IDENT))
+    {
+        let field: char * = lxr->token;
+        lexer_expect(lxr, TOK_COLON);
+        let expr: struct Expr *;
+        if (!(expr = parse_expression(lxr)))
+            todo; // TODO: report error
+
+        let kwarg: struct Kwarg * = malloc(sizeof(*kwarg));
+        kwarg->field = field;
+        kwarg->expr = expr;
+
+        list_push(&list, (void *) kwarg);
+
+        // Allow optional trailing comma.
+        if (lexer_accept(lxr, TOK_COMMA))
+            continue;
+        else
+            break;
+    }
+
+    return list;
+}
+
 // PrimaryExpression
 //    <- StringLiteral
 //     / Constant
@@ -1756,10 +2368,32 @@ fn parse_primary_expression(lxr: struct Lexer *) -> struct Expr *
 
     if (lexer_accept(lxr, TOK_IDENT))
     {
-        expr = malloc(sizeof(*expr));
-        expr->tag = EXPR_IDENT;
-        expr->as.ident.value = lxr->token;
-        return expr;
+        let name: char * = lxr->token;
+
+        // VARIANT LITERAL
+        if (lexer_accept(lxr, TOK_COLON_COLON))
+        {
+            let type_name: char * = name;
+
+            lexer_expect(lxr, TOK_IDENT);
+            let variant_name: char * = lxr->token;
+            lexer_expect(lxr, TOK_OPEN_BRACE);
+            let init_list: struct List = parse_struct_initializer_list(lxr);
+            lexer_expect(lxr, TOK_CLOSE_BRACE);
+
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_LITERAL_VARIANT;
+            expr->as.literal_variant.type_name = type_name;
+            expr->as.literal_variant.variant_name = variant_name;
+            expr->as.literal_variant.initializer_list = init_list;
+            return expr;
+        } else {
+            // IDENTIFIER
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_IDENT;
+            expr->as.ident.value = name;
+            return expr;
+        }
     }
 
     if (lexer_accept(lxr, TOK_OPEN_PAREN) &&

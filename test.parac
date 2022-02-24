@@ -52,6 +52,9 @@ fn test_parse_exprs()
     test_expr("  \"adfkjlhksjdfh \\n kajdfjahdfs adf a.\"   ");
     test_expr("  true ");
     test_expr("  false ");
+    test_expr("  Expr::Add { x: xxx, y: yyy  }   "); // no trailing comma
+    test_expr("  Expr::Add { x: xxx, y: yyy, }   "); // trailing comma
+    test_expr("  List::Nil { }   ");
     test_expr("  my_dog->birth_date[100].year++ ");
     test_expr("  my_func(1, 2, 3) ");
     test_expr("  my_func(1, 2, 3, ) ");
@@ -110,6 +113,7 @@ fn test_parse_types()
     test_type("  char**  ");
     test_type("  struct Expr  ");
     test_type("  enum Tag  ");
+    test_type("  data Expr  ");
     test_type("  struct { x: int, y: int, }  ");
     test_type("  union { x: int, y: void *, }  ");
     test_type("  enum { TOK_PLUS, TOK_MINUS, TOK_INT }  ");
