@@ -1496,6 +1496,15 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
     return true;
 }
 
+global TEMP_ID: int = 0;
+
+fn gen_temp() -> char *
+{
+    let name: char * = format_alloc("%s__TEMP_%d", PARAC_PREFIX, TEMP_ID);
+    TEMP_ID = TEMP_ID + 1;
+    return name;
+}
+
 fn display_if_let(
     out: FILE *,
     type_name: char *,
@@ -1506,12 +1515,24 @@ fn display_if_let(
     alternative: struct Stmt *,
 ) -> bool
 {
+    let expr_temp: char * = gen_temp();
+
+    let type: struct Type * = malloc(sizeof(*type));
+    type->tag = TYPE_NAMED_DATA_REF;
+    type->as.named.name = type_name;
+
+    // Save `expr` in a temporary named `expr_temp`.
+    if (!(display_typed_identifier(out, type, expr_temp) &&
+          fprintf_s(out, " = ") >= 0 &&
+          display_expr(out, expr) &&
+          fprintf_s(out, ";\n") >= 0))
+        return false;
+
+
     // First check that it is the expected variant.
     {
         let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
-        if (!(fprintf_s(out, "if ((") >= 0 &&
-              display_expr(out, expr) &&
-              fprintf_s(out, ").tag == %s) {", tag_name) >= 0))
+        if (!(fprintf_s(out, "if (%s.tag == %s) {", expr_temp, tag_name) >= 0))
             return false;
     }
 
@@ -1524,14 +1545,8 @@ fn display_if_let(
         if (!display_typed_identifier(out, bt->type, bt->binder))
             return false;
 
-        if (!(fprintf_s(out, " = (") >= 0))
-            return false;
-
-        if (!display_expr(out, expr))
-            return false;
-
         let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
-        if (!(fprintf_s(out, ").as.%s.%s;", variant_struct_name, bt->field) >= 0))
+        if (!(fprintf_s(out, " = %s.as.%s.%s;", expr_temp, variant_struct_name, bt->field) >= 0))
             return false;
         
 
@@ -1570,12 +1585,23 @@ fn display_let_else(
     alternative: struct Stmt *,
 ) -> bool
 {
+    let expr_temp: char * = gen_temp();
+
+    let type: struct Type * = malloc(sizeof(*type));
+    type->tag = TYPE_NAMED_DATA_REF;
+    type->as.named.name = type_name;
+
+    // Save `expr` in a temporary named `expr_temp`.
+    if (!(display_typed_identifier(out, type, expr_temp) &&
+          fprintf_s(out, " = ") >= 0 &&
+          display_expr(out, expr) &&
+          fprintf_s(out, ";\n") >= 0))
+        return false;
+
     // First check that it is the expected variant.
     {
         let tag_name: char * = mangle_variant_tag_name(type_name, variant_name);
-        if (!(fprintf_s(out, "if ((") >= 0 &&
-              display_expr(out, expr) &&
-              fprintf_s(out, ").tag != %s)", tag_name) >= 0 &&
+        if (!(fprintf_s(out, "if (%s.tag != %s)", expr_temp, tag_name) >= 0 &&
               display_stmt(out, alternative)))
             return false;
     }
@@ -1589,14 +1615,8 @@ fn display_let_else(
         if (!display_typed_identifier(out, bt->type, bt->binder))
             return false;
 
-        if (!(fprintf_s(out, " = (") >= 0))
-            return false;
-
-        if (!display_expr(out, expr))
-            return false;
-
         let variant_struct_name: char * = mangle_variant_struct_name(type_name, variant_name);
-        if (!(fprintf_s(out, ").as.%s.%s;", variant_struct_name, bt->field) >= 0))
+        if (!(fprintf_s(out, " = %s.as.%s.%s;", expr_temp, variant_struct_name, bt->field) >= 0))
             return false;
         
 
