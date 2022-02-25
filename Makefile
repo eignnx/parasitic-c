@@ -2,8 +2,8 @@ CC=zig cc
 CC_FLAGS=-g -std=c11 -Werror -Wpedantic -Wall
 
 # The most recent stable version of the compiler
-MOST_STABLE_VERSION=0.1.0
-NEXT_STABLE_VERSION=0.1.1
+MOST_STABLE_VERSION=0.1.1
+NEXT_STABLE_VERSION=0.1.2
 PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
 
 PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac test.parac
@@ -39,6 +39,7 @@ release: $(PARACC_PARAC_SRCS) $(PARACC_C_SRCS)
 	$(MV) .\lex.c releases\$(NEXT_STABLE_VERSION)
 	$(MV) .\cstr_buf.c releases\$(NEXT_STABLE_VERSION)
 	$(MV) .\list.c releases\$(NEXT_STABLE_VERSION)
+	$(MV) .\test.c releases\$(NEXT_STABLE_VERSION)
 	$(CP) .\cheats.h releases\$(NEXT_STABLE_VERSION)
 	$(CC) $(CC_FLAGS) releases\$(NEXT_STABLE_VERSION)\paracc.c -o paracc-v$(NEXT_STABLE_VERSION).exe
 
