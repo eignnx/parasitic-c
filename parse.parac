@@ -1835,9 +1835,14 @@ fn parse_var_decl_follow(lxr: struct Lexer *, name: char *) -> struct Stmt *
 // Returns a `List` of `BindingTriple *`s.
 fn parse_struct_pattern_bindings(lxr: struct Lexer *) -> struct List
 {
-    lexer_expect(lxr, TOK_OPEN_BRACE);
-
     let bindings: struct List = list_init();
+
+    // For variants with no data (i.e. `Tm::Nop`), just return an empty list.
+    if (!lexer_accept(lxr, TOK_OPEN_BRACE))
+    {
+        return bindings;
+    }
+
 
     while (true)
     {
