@@ -8,7 +8,7 @@ struct List {
 }
 
 struct ListNode {
-    data: void *,
+    value: void *,
     next: struct ListNode *,
 }
 
@@ -20,10 +20,10 @@ fn list_init() -> struct List
     return list;
 }
 
-fn list_push(list: struct List *, data: void *)
+fn list_push(list: struct List *, value: void *)
 {
     let new_node: struct ListNode * = malloc(sizeof(*new_node));
-    new_node->data = data;
+    new_node->value = value;
     new_node->next = NULL;
 
     if (list->first && list->last)
@@ -48,12 +48,12 @@ fn list_pop_front(list: struct List *) -> void *
     if (list_is_empty(list))
         return NULL;
 
-    let data: void * = list->first->data;
+    let value: void * = list->first->value;
     list->first = list->first->next;
     if (list->first == NULL)
         list->last = NULL;
     // TODO: free the ListNode we just popped
-    return data;
+    return value;
 }
 
 fn list_contains_cstr(haystack: struct List *, needle: char *) -> bool
@@ -61,7 +61,7 @@ fn list_contains_cstr(haystack: struct List *, needle: char *) -> bool
     let node: struct ListNode * = haystack->first;
     while (node)
     {
-        let element: char * = (char *)node->data;
+        let element: char * = (char *)node->value;
 
         if (strcmp(element, needle) == 0)
             return true;

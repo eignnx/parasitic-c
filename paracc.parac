@@ -100,7 +100,7 @@ fn all_included_parac_filenames(tu: struct TranslationUnit *) -> struct List
 
     while (node)
     {
-        let item: struct Item * = (struct Item *)node->data;
+        let item: struct Item * = (struct Item *)node->value;
 
         if (item->tag == ITEM_POUND_INCLUDE)
         {
@@ -214,7 +214,7 @@ fn compile_project(compiler: struct Compiler *, project_root: char *)
         let node: struct ListNode * = new_files.first;
         while (node)
         {
-            let new_file: char * = (char *)node->data;
+            let new_file: char * = (char *)node->value;
 
             // Don't compile already compiled files.
             if (!list_contains_cstr(&compiler->processed_files, new_file))

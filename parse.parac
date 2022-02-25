@@ -233,7 +233,7 @@ fn display_struct_members(out: FILE *, list: struct List *) -> bool
 
     while (node)
     {
-        let sm: struct StructMember * = (struct StructMember *)node->data;
+        let sm: struct StructMember * = (struct StructMember *)node->value;
 
         let result: bool = fprintf_s(out, "    ") >= 0 &&
                            display_typed_identifier(out, sm->type, sm->field) &&
@@ -254,7 +254,7 @@ fn display_enum_members(out: FILE *, list: struct List *) -> bool
 
     while (node)
     {
-        let enum_constant_name: char * = (char *)node->data;
+        let enum_constant_name: char * = (char *)node->value;
         let result: bool = fprintf_s(out, "    %s,\n", enum_constant_name) >= 0;
 
         if (!result)
@@ -473,7 +473,7 @@ fn display_const_array(out: FILE *, list: struct List *) -> bool
 
     while (node)
     {
-        let expr: struct ConstantExpr * = (struct ConstantExpr *)node->data;
+        let expr: struct ConstantExpr * = (struct ConstantExpr *)node->value;
 
         if (node->next)
         {
@@ -643,7 +643,7 @@ fn display_param_types(out: FILE *, param_types: struct List *) -> bool
 
     while (node)
     {
-        let type: struct Type * = (struct Type *)node->data;
+        let type: struct Type * = (struct Type *)node->value;
 
         if (node->next)
         {
@@ -678,7 +678,7 @@ fn display_fn_params(out: FILE *, params: struct List *) ->  bool
 
     while (node)
     {
-        let param: struct FnParam * = (struct FnParam *)node->data;
+        let param: struct FnParam * = (struct FnParam *)node->value;
 
         if (node->next)
         {
@@ -771,7 +771,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
         
         let iter: struct ListNode * = members->first;
         while (iter) {
-            let dm: struct DataMember * = (struct DataMember *) iter->data;
+            let dm: struct DataMember * = (struct DataMember *) iter->value;
 
             let mangled_name: char* = mangle_variant_tag_name(name, dm->name);
             list_push(&tags, (void *) mangled_name);
@@ -796,7 +796,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
 
         let iter: struct ListNode * = members->first;
         while (iter) {
-            let dm: struct DataMember * = (struct DataMember *) iter->data;
+            let dm: struct DataMember * = (struct DataMember *) iter->value;
 
             let mangled_name: char* = mangle_variant_struct_name(name, dm->name);
 
@@ -949,7 +949,7 @@ fn display_item_list(out: FILE *, items: struct List *) -> bool
     let node: struct ListNode * = items->first;
     while (node)
     {
-        let item: struct Item * = (struct Item *)node->data;
+        let item: struct Item * = (struct Item *)node->value;
 
         if (!display_item(out, item))
             return false;
@@ -964,7 +964,7 @@ fn display_tu_struct_decls(out: FILE *, tu: struct TranslationUnit *) -> bool
     let node: struct ListNode * = tu->struct_defns.first;
     while (node)
     {
-        let item: struct Item * = (struct Item *)node->data;
+        let item: struct Item * = (struct Item *)node->value;
 
         if (item->tag == ITEM_NAMED_STRUCT_DECL)
         {
@@ -989,7 +989,7 @@ fn display_tu_fn_decls(out: FILE *, tu: struct TranslationUnit *) -> bool
     let node: struct ListNode * = tu->fn_defns.first;
     while (node)
     {
-        let item: struct Item * = (struct Item *)node->data;
+        let item: struct Item * = (struct Item *)node->value;
 
         if (item->tag != ITEM_FN_DEF)
             todo;
@@ -1361,7 +1361,7 @@ fn display_switch_arms(out: FILE *, arms: struct List *) -> bool
 
     while (node)
     {
-        let arm: struct SwitchArm * = (struct SwitchArm *)node->data;
+        let arm: struct SwitchArm * = (struct SwitchArm *)node->value;
 
         // If `test` is NULL, this is a `default` arm.
         if (arm->test == NULL)
@@ -1484,7 +1484,7 @@ fn display_stmt_list(out: FILE *, list: struct List *) -> bool
 
     while (node)
     {
-        let stmt: struct Stmt * = (struct Stmt *)node->data;
+        let stmt: struct Stmt * = (struct Stmt *)node->value;
         let result: bool = display_stmt(out, stmt);
 
         if (!result)
@@ -1540,7 +1540,7 @@ fn display_if_let(
     let iter: struct ListNode * = bindings->first;
     while (iter)
     {
-        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->value;
 
         if (!display_typed_identifier(out, bt->type, bt->binder))
             return false;
@@ -1610,7 +1610,7 @@ fn display_let_else(
     let iter: struct ListNode * = bindings->first;
     while (iter)
     {
-        let bt: struct BindingTriple * = (struct BindingTriple *) iter->data;
+        let bt: struct BindingTriple * = (struct BindingTriple *) iter->value;
 
         if (!display_typed_identifier(out, bt->type, bt->binder))
             return false;
@@ -2164,7 +2164,7 @@ fn display_literal_variant(
         let iter: struct ListNode * = initializer_list.first;
         while (iter)
         {
-            let kwarg: struct Kwarg * = (struct Kwarg *) iter->data;
+            let kwarg: struct Kwarg * = (struct Kwarg *) iter->value;
 
             if (!(fprintf_s(out, ".%s = ", kwarg->field) >= 0))
                 return false;
@@ -2284,7 +2284,7 @@ fn display_arglist(out: FILE *, list: struct List *) -> bool
 
     while (node)
     {
-        let expr: struct Expr * = (struct Expr *)node->data;
+        let expr: struct Expr * = (struct Expr *)node->value;
 
         if (node->next)
         {
