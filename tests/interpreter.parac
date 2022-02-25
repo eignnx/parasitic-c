@@ -1,9 +1,10 @@
 #include <stdio.h>
 
 data Tm {
-    Int { value: int, },
-    Add { x: data Tm *, y: data Tm *, },
-    Print { arg: data Tm *, },
+    Int { value: int },
+    Nop,
+    Add { x: data Tm *, y: data Tm * },
+    Print { arg: data Tm * },
 }
 
 fn eval(tm: data Tm *) -> int {

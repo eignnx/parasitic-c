@@ -788,16 +788,19 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
         while (iter) {
             let dm: struct DataMember * = (struct DataMember *) iter->value;
 
-            let mangled_name: char* = mangle_variant_struct_name(name, dm->name);
+            // If there's no data associated with the variant, don't add it to the union
+            // of structs.
+            if (!list_is_empty(&dm->struct_members))
+            {
+                let anon_struct: data Type * = malloc(sizeof(*anon_struct));
+                *anon_struct = Type::AnonStruct { struct_members: dm->struct_members };
 
-            let anon_struct: data Type * = malloc(sizeof(*anon_struct));
-            *anon_struct = Type::AnonStruct { struct_members: dm->struct_members };
+                let sm: struct StructMember * = malloc(sizeof(*sm));
+                sm->field = mangle_variant_struct_name(name, dm->name);
+                sm->type = anon_struct;
 
-            let sm: struct StructMember * = malloc(sizeof(*sm));
-            sm->field = mangled_name;
-            sm->type = anon_struct;
-
-            list_push(&struct_members, (void *) sm);
+                list_push(&struct_members, (void *) sm);
+            }
 
             iter = iter->next;
         }
@@ -1140,6 +1143,7 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         return item;
     }
 
+    // DATA DEFINITION
     if (lexer_accept(lxr, TOK_DATA))
     {
         lexer_expect(lxr, TOK_IDENT);
@@ -1222,37 +1226,44 @@ fn parse_data_member_list(lxr: struct Lexer *) -> struct List
     {
         let variant_name: char * = lxr->token;
 
-        lexer_expect(lxr, TOK_OPEN_BRACE);
-
         let struct_members: struct List = list_init();
 
-        while (lexer_accept(lxr, TOK_IDENT))
+        // Allow optional brace-delimited list of members. An empty brace list is the same
+        // as no brace list, i.e. `A::X {}` == `A::X`.
+        if (lexer_accept(lxr, TOK_OPEN_BRACE))
         {
-            let field: char * = lxr->token;
+            while (lexer_accept(lxr, TOK_IDENT))
+            {
+                let field: char * = lxr->token;
 
-            lexer_expect(lxr, TOK_COLON);
+                lexer_expect(lxr, TOK_COLON);
 
-            let type: struct Type *;
-            if (!(type = parse_type(lxr)))
-                todo; // TODO: report error
+                let type: struct Type *;
+                if (!(type = parse_type(lxr)))
+                    todo; // TODO: report error
 
-            lexer_expect(lxr, TOK_COMMA);
+                let sm: struct StructMember * = malloc(sizeof(*sm));
+                sm->field = field;
+                sm->type = type;
 
-            let sm: struct StructMember * = malloc(sizeof(*sm));
-            sm->field = field;
-            sm->type = type;
+                list_push(&struct_members, (void *)sm);
 
-            list_push(&struct_members, (void *)sm);
+                if (!lexer_accept(lxr, TOK_COMMA))
+                    break;
+            }
+
+            lexer_expect(lxr, TOK_CLOSE_BRACE);
         }
 
-        lexer_expect(lxr, TOK_CLOSE_BRACE);
-        lexer_expect(lxr, TOK_COMMA);
 
         let dm: struct DataMember * = malloc(sizeof(*dm));
         dm->name = variant_name;
         dm->struct_members = struct_members;
 
         list_push(&list, (void *)dm);
+
+        if (!lexer_accept(lxr, TOK_COMMA))
+            break;
     }
 
     return list;
