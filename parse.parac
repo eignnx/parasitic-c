@@ -1845,10 +1845,17 @@ fn parse_struct_pattern_bindings(lxr: struct Lexer *) -> struct List
             break;
 
         let field: char * = lxr->token;
+        let binder: char *;
 
-        lexer_expect(lxr, TOK_EQUAL);
-        lexer_expect(lxr, TOK_IDENT);
-        let binder: char * = lxr->token;
+        if (lexer_accept(lxr, TOK_EQUAL))
+        {
+            // If you get an `=`, the field name and binder name COULD be different.
+            lexer_expect(lxr, TOK_IDENT);
+            binder = lxr->token;
+        } else {
+            // Otherwise, a name pun is being used. The field and binder names are the same.
+            binder = field;
+        }
 
         let filename: char * = lxr->filename;
         let line: int = lxr->line;

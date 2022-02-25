@@ -11,7 +11,10 @@ fn eval(tm: data Tm *) -> int {
     if let Tm::Int { value = v: int } = *tm {
         return v;
     }
-    if let Tm::Print { arg = arg: data Tm * } = *tm {
+    if let Tm::Nop = *tm {
+        return 0;
+    }
+    if let Tm::Print { arg: data Tm * } = *tm {
         let res: int = eval(arg);
         printf("%d\n", res);
         return res;
