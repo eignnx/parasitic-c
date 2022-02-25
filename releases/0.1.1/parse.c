@@ -533,7 +533,7 @@ bool display_struct_members(FILE *out, struct List *list)
 struct ListNode *node = list->first;
 while (node)
 {
-struct StructMember *sm = (struct StructMember *) node->data;
+struct StructMember *sm = (struct StructMember *) node->value;
 bool result = fprintf_s(out, "    ") >= 0 && display_typed_identifier(out, sm->type, sm->field) && fprintf_s(out, ";\n", sm->field) >= 0;
 if (!(result))
 return false;
@@ -547,7 +547,7 @@ bool display_enum_members(FILE *out, struct List *list)
 struct ListNode *node = list->first;
 while (node)
 {
-char *enum_constant_name = (char *) node->data;
+char *enum_constant_name = (char *) node->value;
 bool result = fprintf_s(out, "    %s,\n", enum_constant_name) >= 0;
 if (!result)
 return false;
@@ -704,7 +704,7 @@ bool display_const_array(FILE *out, struct List *list)
 struct ListNode *node = list->first;
 while (node)
 {
-struct ConstantExpr *expr = (struct ConstantExpr *) node->data;
+struct ConstantExpr *expr = (struct ConstantExpr *) node->value;
 if (node->next)
 {
 bool result = display_constant_expr(out, expr) && fprintf_s(out, ",\n") >= 0;
@@ -814,7 +814,7 @@ bool display_param_types(FILE *out, struct List *param_types)
 struct ListNode *node = param_types->first;
 while (node)
 {
-struct Type *type = (struct Type *) node->data;
+struct Type *type = (struct Type *) node->value;
 if (node->next)
 {
 bool result = display_type(out, type) && fprintf_s(out, ", ");
@@ -837,7 +837,7 @@ bool display_fn_params(FILE *out, struct List *params)
 struct ListNode *node = params->first;
 while (node)
 {
-struct FnParam *param = (struct FnParam *) node->data;
+struct FnParam *param = (struct FnParam *) node->value;
 if (node->next)
 {
 bool result = display_typed_identifier(out, param->type, param->name) && fprintf_s(out, ", ") >= 0;
@@ -911,7 +911,7 @@ struct List tags = list_init();
 struct ListNode *iter = members->first;
 while (iter)
 {
-struct DataMember *dm = (struct DataMember *) iter->data;
+struct DataMember *dm = (struct DataMember *) iter->value;
 char *mangled_name = mangle_variant_tag_name(name, dm->name);
 list_push(&tags, (void *) mangled_name);
 iter = iter->next;
@@ -931,7 +931,7 @@ struct List struct_members = list_init();
 struct ListNode *iter = members->first;
 while (iter)
 {
-struct DataMember *dm = (struct DataMember *) iter->data;
+struct DataMember *dm = (struct DataMember *) iter->value;
 char *mangled_name = mangle_variant_struct_name(name, dm->name);
 struct Type *anon_struct = malloc(sizeof (*anon_struct));
 anon_struct->tag = TYPE_ANON_STRUCT;
@@ -1055,7 +1055,7 @@ bool display_item_list(FILE *out, struct List *items)
 struct ListNode *node = items->first;
 while (node)
 {
-struct Item *item = (struct Item *) node->data;
+struct Item *item = (struct Item *) node->value;
 if (!display_item(out, item))
 return false;
 node = node->next;
@@ -1068,12 +1068,13 @@ bool display_tu_struct_decls(FILE *out, struct TranslationUnit *tu)
 struct ListNode *node = tu->struct_defns.first;
 while (node)
 {
-struct Item *item = (struct Item *) node->data;
+struct Item *item = (struct Item *) node->value;
 if (item->tag == ITEM_NAMED_STRUCT_DECL)
 {
 if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
 return false;
 }
+else
 if (item->tag == ITEM_NAMED_DATA_DECL)
 {
 if (!(fprintf_s(out, "struct %s;\n", item->as.named_data_decl.name) >= 0))
@@ -1091,7 +1092,7 @@ bool display_tu_fn_decls(FILE *out, struct TranslationUnit *tu)
 struct ListNode *node = tu->fn_defns.first;
 while (node)
 {
-struct Item *item = (struct Item *) node->data;
+struct Item *item = (struct Item *) node->value;
 if (item->tag != ITEM_FN_DEF)
 todo;
 if (!(display_fn_signature(out, item->as.fn_def.name, &item->as.fn_def.params, item->as.fn_def.ret_type) && fprintf_s(out, ";\n") >= 0))
@@ -1281,7 +1282,7 @@ bool display_switch_arms(FILE *out, struct List *arms)
 struct ListNode *node = arms->first;
 while (node)
 {
-struct SwitchArm *arm = (struct SwitchArm *) node->data;
+struct SwitchArm *arm = (struct SwitchArm *) node->value;
 if (arm->test == NULL)
 {
 bool result = fprintf_s(out, "default:\n") >= 0 && fprintf_s(out, "{\n") >= 0 && display_stmt_list(out, &arm->stmts) && fprintf_s(out, "}\n") >= 0;
@@ -1376,7 +1377,7 @@ bool display_stmt_list(FILE *out, struct List *list)
 struct ListNode *node = list->first;
 while (node)
 {
-struct Stmt *stmt = (struct Stmt *) node->data;
+struct Stmt *stmt = (struct Stmt *) node->value;
 bool result = display_stmt(out, stmt);
 if (!result)
 return false;
@@ -1408,7 +1409,7 @@ return false;
 struct ListNode *iter = bindings->first;
 while (iter)
 {
-struct BindingTriple *bt = (struct BindingTriple *) iter->data;
+struct BindingTriple *bt = (struct BindingTriple *) iter->value;
 if (!display_typed_identifier(out, bt->type, bt->binder))
 return false;
 char *variant_struct_name = mangle_variant_struct_name(type_name, variant_name);
@@ -1448,7 +1449,7 @@ return false;
 struct ListNode *iter = bindings->first;
 while (iter)
 {
-struct BindingTriple *bt = (struct BindingTriple *) iter->data;
+struct BindingTriple *bt = (struct BindingTriple *) iter->value;
 if (!display_typed_identifier(out, bt->type, bt->binder))
 return false;
 char *variant_struct_name = mangle_variant_struct_name(type_name, variant_name);
@@ -1751,7 +1752,7 @@ return false;
 struct ListNode *iter = initializer_list.first;
 while (iter)
 {
-struct Kwarg *kwarg = (struct Kwarg *) iter->data;
+struct Kwarg *kwarg = (struct Kwarg *) iter->value;
 if (!(fprintf_s(out, ".%s = ", kwarg->field) >= 0))
 return false;
 if (!display_expr(out, kwarg->expr))
@@ -1899,7 +1900,7 @@ bool display_arglist(FILE *out, struct List *list)
 struct ListNode *node = list->first;
 while (node)
 {
-struct Expr *expr = (struct Expr *) node->data;
+struct Expr *expr = (struct Expr *) node->value;
 if (node->next)
 {
 bool result = display_expr(out, expr) && fprintf_s(out, ", ") >= 0;

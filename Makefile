@@ -5,6 +5,7 @@ CC_FLAGS=-g -std=c11 -Werror -Wpedantic -Wall
 MOST_STABLE_VERSION=0.1.1
 NEXT_STABLE_VERSION=0.1.2
 PCC=.\paracc-v$(MOST_STABLE_VERSION).exe
+# PCC=.\tgt\paracc-HEAD.exe
 
 PARACC_PARAC_SRCS=paracc.parac parse.parac lex.parac cstr_buf.parac list.parac test.parac
 PARACC_C_SRCS=cheats.h

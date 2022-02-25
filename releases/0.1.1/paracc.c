@@ -112,7 +112,7 @@ struct ListNode *node = tu->directives.first;
 struct List parac_filenames = list_init();
 while (node)
 {
-struct Item *item = (struct Item *) node->data;
+struct Item *item = (struct Item *) node->value;
 if (item->tag == ITEM_POUND_INCLUDE)
 {
 char *filename = item->as.pound_include.filename;
@@ -207,7 +207,7 @@ list_push(&compiler->processed_files, filename);
 struct ListNode *node = new_files.first;
 while (node)
 {
-char *new_file = (char *) node->data;
+char *new_file = (char *) node->value;
 if (!list_contains_cstr(&compiler->processed_files, new_file))
 {
 list_push(&compiler->files_to_be_processed, (void *) new_file);

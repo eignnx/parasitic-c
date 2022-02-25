@@ -19,7 +19,7 @@ struct List {
 };
 
 struct ListNode {
-    void *data;
+    void *value;
     struct ListNode *next;
 };
 
@@ -28,7 +28,7 @@ struct ListNode {
 
 // FN DECLS //
 struct List list_init();
-void list_push(struct List *list, void *data);
+void list_push(struct List *list, void *value);
 bool list_is_empty(struct List *list);
 void * list_pop_front(struct List *list);
 bool list_contains_cstr(struct List *haystack, char *needle);
@@ -42,10 +42,10 @@ list.last = NULL;
 return list;
 }
 
-void list_push(struct List *list, void *data)
+void list_push(struct List *list, void *value)
 {
 struct ListNode *new_node = malloc(sizeof (*new_node));
-new_node->data = data;
+new_node->value = value;
 new_node->next = NULL;
 if (list->first && list->last)
 {
@@ -68,11 +68,11 @@ void * list_pop_front(struct List *list)
 {
 if (list_is_empty(list))
 return NULL;
-void *data = list->first->data;
+void *value = list->first->value;
 list->first = list->first->next;
 if (list->first == NULL)
 list->last = NULL;
-return data;
+return value;
 }
 
 bool list_contains_cstr(struct List *haystack, char *needle)
@@ -80,7 +80,7 @@ bool list_contains_cstr(struct List *haystack, char *needle)
 struct ListNode *node = haystack->first;
 while (node)
 {
-char *element = (char *) node->data;
+char *element = (char *) node->value;
 if (strcmp(element, needle) == 0)
 return true;
 node = node->next;
