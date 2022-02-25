@@ -971,7 +971,7 @@ fn display_tu_struct_decls(out: FILE *, tu: struct TranslationUnit *) -> bool
             if (!(fprintf_s(out, "struct %s;\n", item->as.named_struct_decl.name) >= 0))
                 return false;
         }
-        if (item->tag == ITEM_NAMED_DATA_DECL)
+        else if (item->tag == ITEM_NAMED_DATA_DECL)
         {
             if (!(fprintf_s(out, "struct %s;\n", item->as.named_data_decl.name) >= 0))
                 return false;
