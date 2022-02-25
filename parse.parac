@@ -44,102 +44,89 @@ fn parse_struct_member_list(lxr: struct Lexer *) -> struct List
     return list;
 }
 
-struct Type
-{
-    tag: enum {
-        // Atomic types
-        TYPE_INT,
-        TYPE_BOOL,
-        TYPE_CHAR,
-        TYPE_VOID,
-        TYPE_CSTR_ARR,
-        TYPE_FILE,
+data Type {
 
-        // Compound types
-        TYPE_PTR,
-        TYPE_FN_PTR,
-        TYPE_NAMED_STRUCT_REF,
-        TYPE_NAMED_ENUM_REF,
-        TYPE_NAMED_DATA_REF,
+    // Atomic types
+    Int { _: char, },
+    Bool { _: char, },
+    Char { _: char, },
+    Void { _: char, },
+    CStrArr { _: char, },
+    File { _: char, },
 
-        // TODO: Remove anonymous types once algebraic data types are impl'd.
-        TYPE_ANON_STRUCT,
-        TYPE_ANON_UNION,
-        TYPE_ANON_ENUM,
+    // Compound types
+    Ptr { child: data Type *, },
+    FnPtr {
+        param_types: struct List, // A `List` of `Type *`s.
+        ret_type: data Type *,
     },
+    NamedStructRef { name: char *, },
+    NamedEnumRef { name: char *, },
+    NamedDataRef { name: char *, },
 
-    as: union {
-        ptr: struct {
-            child: struct Type *,
-        },
-
-        fn_ptr: struct {
-            param_types: struct List, // A `List` of `Type*`s.
-            ret_type: struct Type *,
-        },
-
-        named: struct {
-            name: char *,
-        },
-
-        anon_struct_or_union: struct {
-            struct_members: struct List, // A `List` of `StructMember`s.
-        },
-
-        anon_enum: struct {
-            enum_members: struct List, // A `List` of `char *`s.
-        },
+    // TODO: Remove anonymous types once algebraic data types are impl'd.
+    AnonStruct {
+        struct_members: struct List, // A `List` of `StructMember`s.
+    },
+    AnonUnion {
+        struct_members: struct List, // A `List` of `StructMember`s.
+    },
+    AnonEnum {
+        enum_members: struct List, // A `List` of `char *`s.
     },
 }
 
-fn display_fn_pointer_type(out: FILE *, type: struct Type *, binder: char *) -> bool
+fn display_fn_pointer_type(out: FILE *, type: data Type *, binder: char *) -> bool
 {
     // We're at the first non-fn-ptr type in the return-type chain.
-    if (type == NULL || type->tag != TYPE_FN_PTR)
-    {
-        if (type == NULL)
-            return fprintf_s(out, "void ") >= 0;
-        else
-            return display_type(out, type) &&
-                   fprintf_s(out, " ") >= 0;
-        // The stack will now unwind, and essentially go to "Step 2" in branch 2.
+    if (type == NULL) {
+        return fprintf_s(out, "void ") >= 0;
     }
+
     // This is the initial entry point to the function (usually).
-    else if (type->tag == TYPE_FN_PTR && binder)
-    {
-        // Initiate recursion.
-        // Step 1: Print out:
-        //             a) the final return type, and
-        //             b) as many leading '(*'s.
-        if (!display_fn_pointer_type(out, type->as.fn_ptr.ret_type, NULL))
-            return false;
-
-        // Step 2: Print out the bottom-most function pointer with it's binder.
-        if (!(fprintf_s(out, "(*%s)(", binder) >= 0 &&
-              display_param_types(out, &type->as.fn_ptr.param_types) &&
-              fprintf_s(out, ")") >= 0))
-            return false;
-
-        // Step 3: Print ')(PARAMS)' for all fn pointers
-        let t: struct Type * = type->as.fn_ptr.ret_type;
-        while (t != NULL && t->tag == TYPE_FN_PTR)
-        {
-            if (!(fprintf_s(out, ")(") >= 0 &&
-                  display_param_types(out, &t->as.fn_ptr.param_types) &&
-                  fprintf_s(out, ")") >= 0))
+    if let Type::FnPtr { param_types = param_types: struct List, ret_type = ret_type: data Type * } = *type {
+        if (binder) {
+            // Initiate recursion.
+            // Step 1: Print out:
+            //             a) the final return type, and
+            //             b) as many leading '(*'s.
+            if (!display_fn_pointer_type(out, ret_type, NULL))
                 return false;
 
-            t = t->as.fn_ptr.ret_type;
-        }
+            // Step 2: Print out the bottom-most function pointer with it's binder.
+            if (!(fprintf_s(out, "(*%s)(", binder) >= 0 &&
+                display_param_types(out, &param_types) &&
+                fprintf_s(out, ")") >= 0))
+                return false;
 
-        return true;
-    }
-    // We're working our way down the tree, need to print a '(*' at each step on
-    // our way back UP.
-    else // if (type->tag == TYPE_FN_PTR && !binder)
-    {
-        return display_fn_pointer_type(out, type->as.fn_ptr.ret_type, NULL) &&
-               fprintf_s(out, "(*") >= 0;
+            // Step 3: Print ')(PARAMS)' for all fn pointers
+            let t: struct Type * = ret_type;
+            while (t != NULL)
+            {
+                if let Type::FnPtr { param_types = pts: struct List, ret_type = child_ret_type: data Type * } = *t {
+                    if (!(fprintf_s(out, ")(") >= 0 &&
+                        display_param_types(out, &pts) &&
+                        fprintf_s(out, ")") >= 0))
+                        return false;
+
+                    t = child_ret_type;
+                } else {
+                    break;
+                }
+            }
+
+            return true;
+        } else {
+            // We're working our way down the tree, need to print a '(*' at each step on
+            // our way back UP.
+            return display_fn_pointer_type(out, ret_type, NULL) &&
+                    fprintf_s(out, "(*") >= 0;
+        }
+    } else {
+        // We're at the first non-fn-ptr type in the return-type chain.
+        return display_type(out, type) &&
+                fprintf_s(out, " ") >= 0;
+        // The stack will now unwind, and essentially go to "Step 2" in branch 2.
     }
 }
 
@@ -160,69 +147,85 @@ fn display_fn_signature(out: FILE *, name: char *, fn_params: struct List *, ret
 
     // Step 3: Print ')(PARAMS)' for all fn pointers
     let t: struct Type * = ret_type;
-    while (t != NULL && t->tag == TYPE_FN_PTR)
-    {
-        if (!(fprintf_s(out, ")(") >= 0 &&
-              display_param_types(out, &t->as.fn_ptr.param_types) &&
-              fprintf_s(out, ")") >= 0))
-            return false;
+    while (t) {
+        if let Type::FnPtr { param_types = param_types: struct List, ret_type = rt: data Type * } = *t {
+            if (!(fprintf_s(out, ")(") >= 0 &&
+                display_param_types(out, &param_types) &&
+                fprintf_s(out, ")") >= 0))
+                return false;
 
-        t = t->as.fn_ptr.ret_type;
+            t = rt;
+        } else {
+            break;
+        }
     }
 
     return true;
 }
 
-fn display_typed_identifier(out: FILE *, type: struct Type *, ident: char *) -> bool
+fn display_typed_identifier(out: FILE *, type: data Type *, ident: char *) -> bool
 {
     let space: char * = " ";
     if (ident == NULL || ident[0] == '\0')
         space = "";
 
-    switch (type->tag)
-    {
-    case TYPE_INT:
+    if let Type::Int {} = *type {
         return fprintf_s(out, "int%s%s", space, ident) >= 0;
-    case TYPE_BOOL:
+    }
+    if let Type::Bool {} = *type {
         return fprintf_s(out, "bool%s%s", space, ident) >= 0;
-    case TYPE_CHAR:
+    }
+    if let Type::Char {} = *type {
         return fprintf_s(out, "char%s%s", space, ident) >= 0;
-    case TYPE_VOID:
+    }
+    if let Type::Void {} = *type {
         return fprintf_s(out, "void%s%s", space, ident) >= 0;
-    case TYPE_CSTR_ARR:
+    }
+    if let Type::CStrArr {} = *type {
         return fprintf_s(out, "cstr_arr%s%s", space, ident) >= 0;
-    case TYPE_FILE:
+    }
+    if let Type::File {} = *type {
         return fprintf_s(out, "FILE%s%s", space, ident) >= 0;
-    case TYPE_PTR:
+    }
+    if let Type::Ptr { child = child: data Type * } = *type {
         // return fprintf_s(out, "(") >= 0 &&
         //        display_type(out, type->as.ptr.child) &&
         //        fprintf_s(out, "*)") >= 0;
-        return display_typed_identifier(out, type->as.ptr.child, "") &&
+        return display_typed_identifier(out, child, "") &&
                fprintf_s(out, " *%s", ident) >= 0;
-    case TYPE_FN_PTR:
+    }
+    if let Type::FnPtr {} = *type { // TODO: Allow wildcard matching (i.e. `..`).
         return display_fn_pointer_type(out, type, ident);
-    case TYPE_NAMED_STRUCT_REF:
-        return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
-    case TYPE_NAMED_ENUM_REF:
-        return fprintf_s(out, "enum %s%s%s", type->as.named.name, space, ident) >= 0;
-    case TYPE_NAMED_DATA_REF:
-        return fprintf_s(out, "struct %s%s%s", type->as.named.name, space, ident) >= 0;
-    case TYPE_ANON_STRUCT:
+    }
+    if let Type::NamedStructRef { name = name: char * } = *type {
+        return fprintf_s(out, "struct %s%s%s", name, space, ident) >= 0;
+    }
+    if let Type::NamedEnumRef { name = name: char * } = *type {
+        return fprintf_s(out, "enum %s%s%s", name, space, ident) >= 0;
+    }
+    if let Type::NamedDataRef { name = name: char * } = *type {
+        return fprintf_s(out, "struct %s%s%s", name, space, ident) >= 0;
+    }
+    if let Type::AnonStruct { struct_members = sms: struct List } = *type {
         return fprintf_s(out, "struct {\n") >= 0 &&
-               display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
-               fprintf_s(out, "}%s%s", space, ident) >= 0;
-    case TYPE_ANON_UNION:
-        return fprintf_s(out, "union {\n") >= 0 &&
-               display_struct_members(out, &type->as.anon_struct_or_union.struct_members) &&
-               fprintf_s(out, "}%s%s", space, ident) >= 0;
-    case TYPE_ANON_ENUM:
-        return fprintf_s(out, "enum {\n") >= 0 &&
-               display_enum_members(out, &type->as.anon_enum.enum_members) &&
+               display_struct_members(out, &sms) &&
                fprintf_s(out, "}%s%s", space, ident) >= 0;
     }
+    if let Type::AnonUnion { struct_members = sms: struct List } = *type {
+        return fprintf_s(out, "union {\n") >= 0 &&
+               display_struct_members(out, &sms) &&
+               fprintf_s(out, "}%s%s", space, ident) >= 0;
+    }
+    if let Type::AnonEnum { enum_members = ems: struct List } = *type {
+        return fprintf_s(out, "enum {\n") >= 0 &&
+               display_enum_members(out, &ems) &&
+               fprintf_s(out, "}%s%s", space, ident) >= 0;
+    }
+    todo;
+    return false;
 }
 
-fn display_type(out: FILE *, type: struct Type *) -> bool
+fn display_type(out: FILE *, type: data Type *) -> bool
 {
     return display_typed_identifier(out, type, "");
 }
@@ -266,18 +269,17 @@ fn display_enum_members(out: FILE *, list: struct List *) -> bool
 }
 
 // type ::= direct_type '*'*
-fn parse_type(lxr: struct Lexer *) -> struct Type *
+fn parse_type(lxr: struct Lexer *) -> data Type *
 {
-    let type: struct Type *;
+    let type: data Type *;
 
     if (!(type = parse_direct_type(lxr)))
         return NULL;
 
     while (lexer_accept(lxr, TOK_STAR))
     {
-        let new_type: struct Type * = malloc(sizeof(*new_type));
-        new_type->tag = TYPE_PTR;
-        new_type->as.ptr.child = type;
+        let new_type: data Type * = malloc(sizeof(*new_type));
+        *new_type = Type::Ptr { child: type };
         type = new_type;
     }
     return type;
@@ -298,9 +300,9 @@ fn parse_type(lxr: struct Lexer *) -> struct Type *
 // anonymous_struct_or_union ::= ('struct' | 'union') '{' struct_member_list '}'
 // anonymous_enum ::= 'enum' '{' enumerator_list '}'
 // fn_ptr_type ::= 'fn' '(' param_types ')' ('->' type)?
-fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
+fn parse_direct_type(lxr: struct Lexer *) -> data Type *
 {
-    let type: struct Type *;
+    let type: data Type *;
 
     if (lexer_accept(lxr, TOK_VOID) ||
         lexer_accept(lxr, TOK_CHAR) ||
@@ -314,22 +316,22 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         switch (lxr->tok_tag)
         {
         case TOK_VOID:
-            type->tag = TYPE_VOID;
+            *type = Type::Void { _: 'x' };
             break;
         case TOK_CHAR:
-            type->tag = TYPE_CHAR;
+            *type = Type::Char { _: 'x' };
             break;
         case TOK_INT:
-            type->tag = TYPE_INT;
+            *type = Type::Int { _: 'x' };
             break;
         case TOK_BOOL:
-            type->tag = TYPE_BOOL;
+            *type = Type::Bool { _: 'x' };
             break;
         case TOK_CSTR_ARR:
-            type->tag = TYPE_CSTR_ARR;
+            *type = Type::CStrArr { _: 'x' };
             break;
         case TOK_FILE:
-            type->tag = TYPE_FILE;
+            *type = Type::File { _: 'x' };
             break;
 
         default:
@@ -342,11 +344,11 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
 
     if (lexer_accept(lxr, TOK_STRUCT))
     {
+        // NAMED STRUCT REF
         if (lexer_accept(lxr, TOK_IDENT))
         {
             type = malloc(sizeof(*type));
-            type->tag = TYPE_NAMED_STRUCT_REF;
-            type->as.named.name = lxr->token;
+            *type = Type::NamedStructRef { name: lxr->token };
             return type;
         }
 
@@ -357,9 +359,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
             lexer_expect(lxr, TOK_CLOSE_BRACE);
 
             type = malloc(sizeof(*type));
-            type->tag = TYPE_ANON_STRUCT;
-            type->as.anon_struct_or_union.struct_members = members;
-
+            *type = Type::AnonStruct { struct_members: members };
             return type;
         }
 
@@ -371,8 +371,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         if (lexer_accept(lxr, TOK_IDENT))
         {
             type = malloc(sizeof(*type));
-            type->tag = TYPE_NAMED_ENUM_REF;
-            type->as.named.name = lxr->token;
+            *type = Type::NamedEnumRef { name: lxr->token };
             return type;
         }
 
@@ -382,9 +381,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
             lexer_expect(lxr, TOK_CLOSE_BRACE);
 
             type = malloc(sizeof(*type));
-            type->tag = TYPE_ANON_ENUM;
-            type->as.anon_enum.enum_members = members;
-
+            *type = Type::AnonEnum { enum_members: members };
             return type;
         }
 
@@ -395,8 +392,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
     {
         lexer_expect(lxr, TOK_IDENT);
         type = malloc(sizeof(*type));
-        type->tag = TYPE_NAMED_DATA_REF;
-        type->as.named.name = lxr->token;
+        *type = Type::NamedDataRef { name: lxr->token };
         return type;
     }
 
@@ -408,16 +404,14 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         lexer_expect(lxr, TOK_CLOSE_BRACE);
 
         type = malloc(sizeof(*type));
-        type->tag = TYPE_ANON_UNION;
-        type->as.anon_struct_or_union.struct_members = members;
-
+        *type = Type::AnonUnion { struct_members: members };
         return type;
     }
 
     // FUNTION POINTER TYPES
     if (lexer_accept(lxr, TOK_FN))
     {
-        let ret_type: struct Type * = NULL;
+        let ret_type: data Type * = NULL;
         lexer_expect(lxr, TOK_OPEN_PAREN);
         let param_types: struct List = parse_param_types(lxr);
         lexer_expect(lxr, TOK_CLOSE_PAREN);
@@ -434,10 +428,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> struct Type *
         }
 
         type = malloc(sizeof(*type));
-        type->tag = TYPE_FN_PTR;
-        type->as.fn_ptr.param_types = param_types;
-        type->as.fn_ptr.ret_type = ret_type;
-
+        *type = Type::FnPtr { param_types: param_types, ret_type: ret_type };
         return type;
     }
 
@@ -779,9 +770,8 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
             iter = iter->next;
         }
 
-        let tags_enum: struct Type * = malloc(sizeof(*tags_enum));
-        tags_enum->tag = TYPE_ANON_ENUM;
-        tags_enum->as.anon_enum.enum_members = tags;
+        let tags_enum: data Type * = malloc(sizeof(*tags_enum));
+        *tags_enum = Type::AnonEnum { enum_members: tags };
 
         {
             let enum_component: struct StructMember * = malloc(sizeof(*enum_component));
@@ -800,9 +790,8 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
 
             let mangled_name: char* = mangle_variant_struct_name(name, dm->name);
 
-            let anon_struct: struct Type * = malloc(sizeof(*anon_struct));
-            anon_struct->tag = TYPE_ANON_STRUCT;
-            anon_struct->as.anon_struct_or_union.struct_members = dm->struct_members;
+            let anon_struct: data Type * = malloc(sizeof(*anon_struct));
+            *anon_struct = Type::AnonStruct { struct_members: dm->struct_members };
 
             let sm: struct StructMember * = malloc(sizeof(*sm));
             sm->field = mangled_name;
@@ -814,9 +803,8 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
         }
 
         {
-            let union_of_structs: struct Type * = malloc(sizeof(*union_of_structs));
-            union_of_structs->tag = TYPE_ANON_UNION;
-            union_of_structs->as.anon_struct_or_union.struct_members = struct_members;
+            let union_of_structs: data Type * = malloc(sizeof(*union_of_structs));
+            *union_of_structs = Type::AnonUnion { struct_members: struct_members };
 
             let union_member: struct StructMember * = malloc(sizeof(*union_member));
             union_member->field = "as";
@@ -838,7 +826,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
 fn parse_param_types(lxr: struct Lexer *) -> struct List
 {
     let types: struct List = list_init();
-    let type: struct Type *;
+    let type: data Type *;
 
     while ((type = parse_type(lxr)))
     {
@@ -1059,7 +1047,7 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         else
         {
             ret_type = malloc(sizeof(*ret_type));
-            ret_type->tag = TYPE_VOID;
+            *ret_type = Type::Void { _: 'x' };
         }
 
         lexer_expect(lxr, TOK_OPEN_BRACE);
@@ -1518,8 +1506,7 @@ fn display_if_let(
     let expr_temp: char * = gen_temp();
 
     let type: struct Type * = malloc(sizeof(*type));
-    type->tag = TYPE_NAMED_DATA_REF;
-    type->as.named.name = type_name;
+    *type = Type::NamedDataRef { name: type_name };
 
     // Save `expr` in a temporary named `expr_temp`.
     if (!(display_typed_identifier(out, type, expr_temp) &&
@@ -1588,8 +1575,7 @@ fn display_let_else(
     let expr_temp: char * = gen_temp();
 
     let type: struct Type * = malloc(sizeof(*type));
-    type->tag = TYPE_NAMED_DATA_REF;
-    type->as.named.name = type_name;
+    *type = Type::NamedDataRef { name: type_name };
 
     // Save `expr` in a temporary named `expr_temp`.
     if (!(display_typed_identifier(out, type, expr_temp) &&
