@@ -2312,7 +2312,7 @@ struct Kwarg {
 // Returns a `List` of `Kwarg`s.
 // Grammar:
 // struct_initializer_list ::=
-//     ('ident' ':' expression (',' 'ident' ':' expression)* ','?)?
+//     ('ident' '=' expression (',' 'ident' '=' expression)* ','?)?
 fn parse_struct_initializer_list(lxr: struct Lexer *) -> struct List
 {
     let list: struct List = list_init();
@@ -2320,21 +2320,29 @@ fn parse_struct_initializer_list(lxr: struct Lexer *) -> struct List
     while (lexer_accept(lxr, TOK_IDENT))
     {
         let field: char * = lxr->token;
-        lexer_expect(lxr, TOK_COLON);
-        let expr: struct Expr *;
-        if (!(expr = parse_expression(lxr)))
-            todo; // TODO: report error
-
         let kwarg: struct Kwarg * = malloc(sizeof(*kwarg));
         kwarg->field = field;
+
+        let expr: struct Expr *;
+
+        // If you get an `=` sign, it means we need to parse an arbitrary expression for `expr`.
+        if (lexer_accept(lxr, TOK_EQUAL))
+        {
+            if (!(expr = parse_expression(lxr)))
+                todo; // TODO: report error
+        } else {
+            // Otherwise, `expr` is just an identifier of the same name as the field.
+            expr = malloc(sizeof(*expr));
+            expr->tag = EXPR_IDENT;
+            expr->as.ident.value = field;
+        }
+
         kwarg->expr = expr;
 
         list_push(&list, (void *) kwarg);
 
         // Allow optional trailing comma.
-        if (lexer_accept(lxr, TOK_COMMA))
-            continue;
-        else
+        if (!lexer_accept(lxr, TOK_COMMA))
             break;
     }
 

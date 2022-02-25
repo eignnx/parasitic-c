@@ -25,10 +25,14 @@ fn eval(tm: data Tm *) -> int {
 }
 
 fn main() -> int {
-    let one: data Tm = Tm::Int { value: 1 };
-    let two: data Tm = Tm::Int { value: 2 };
-    let sum: data Tm = Tm::Add { x: &one, y: &two };
-    let put: data Tm = Tm::Print { arg: &sum };
+    let one: data Tm = Tm::Int { value = 1 };
+    let two: data Tm = Tm::Int { value = 2 };
+    let sum: data Tm = Tm::Add { x = &one, y = &two };
+    let put: data Tm = Tm::Print { arg = &sum };
+    {
+        let value: int = 1234;
+        let blarg: data Tm = Tm::Int { value };
+    }
     let res: int = eval(&put);
     printf("result = %d\n", res);
     return 0;
