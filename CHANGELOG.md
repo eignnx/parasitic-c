@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2]
+### Added
+- Allow name puns in pattern match bindings (`if let A::X { field: Ty } = ...` instead of `if let A::X { field = field: Ty } = ...`).
+### Changed
+- Data variant constructors now use `=` instead of `:` like this: `let x: data Blah = Blah::Glarg { flub = 123 };`.
+### Fixed
+- Allow data variants to contain no data other than a tag, for example: `data A { X {} }` or equivalently `data A { X }`.
+- Better parsing around commas for data variant constructors and destructurings.
+
 ## [0.1.1]
 ### Added
 - Added algebraic data types via the `data` keyword!
