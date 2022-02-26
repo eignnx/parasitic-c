@@ -1,36 +1,60 @@
 # Parasitic C
 A language that compiles to C. Initially, it will be built by parsing C code into an AST, then outputting that AST as C code again. This will make the language trivially bootstrappable, and I can begin evolving the language away from C from there.
 
-I'm keeping the code intentionally simple right now so that fewer constructs have to be implemented (hence no enums or static arrays).
-
 ## Running
 
 I'm working on Windows, and I happen to have `zig` installed, so I compile and run the compile like this:
 
 ```powershell
-> zig cc paracc.c -o paracc.exe; if ($?) { .\paracc.exe }
+> make head
+> .\tgt\paracc-HEAD.exe my-file.parac
+> zig cc my-file.c -std=c11 -o a.exe
 ```
 
 ## Example
 
-The following code is currently lexable.
-
-```c
+```mun
 #include <stdio.h>
-#include "my_file.h"
 
-struct my_type {
-    int x;
-};
+data Tm { // Algebraic data type
+    Int { value: int },
+    Nop,
+    Add { x: data Tm *, y: data Tm * },
+    Print { arg: data Tm * },
+}
 
-void my_func123()
-{ // this is a comment!
-    bool my_bool = true;
-    int my_int = -1234;
-    char my_char1 = '\n';
-    char my_char2 = 'A';
-    char my_char3 = '\'';
-    char *my_str = "qwea sdf sgd \" \n rty";
+fn eval(tm: data Tm *) -> int {
+    if let Tm::Int { value = v: int } = *tm {
+        return v;
+    }
+    if let Tm::Nop = *tm {
+        return 0;
+    }
+    if let Tm::Print { arg: data Tm * } = *tm { // Name puns on data variant destructuring
+        let res: int = eval(arg);
+        printf("%d\n", res);
+        return res;
+    }
+    if let Tm::Add { x = x: data Tm *, y = y: data Tm * } = *tm {
+        let xx: int = eval(x);
+        let yy: int = eval(y);
+        return xx + yy;
+    }
+    return 0;
+}
+
+fn main() -> int {
+    let one: data Tm = Tm::Int { value = 1 };
+    let two: data Tm = Tm::Int { value = 2 };
+    let sum: data Tm = Tm::Add { x = &one, y = &two };
+    let put: data Tm = Tm::Print { arg = &sum };
+    {
+        let value: int = 1234;
+        let blarg: data Tm = Tm::Int { value }; // Name puns on data variant construction
+    }
+    let res: int = eval(&put);
+    printf("result = %d\n", res);
+    return 0;
 }
 ```
 
@@ -46,6 +70,10 @@ These are features of C that the *initial* C compiler will *not* support due to 
 
 ## TODO
 - [X] Complete lexer
-- [ ] Complete parser
-- [ ] Output AST as C code
-- [ ] Add new language features
+- [X] Complete parser
+- [X] Output AST as C code
+- [X] Bootstrap the compiler
+- [X] Implement algebraic data types
+- [ ] Implement generalized pattern matching
+- [ ] Allow array types
+- [ ] Add a type checker
