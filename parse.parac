@@ -1843,7 +1843,6 @@ fn parse_struct_pattern_bindings(lxr: struct Lexer *) -> struct List
         return bindings;
     }
 
-
     while (true)
     {
         if (!(lexer_accept(lxr, TOK_IDENT)))
