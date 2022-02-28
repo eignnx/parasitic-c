@@ -47,12 +47,12 @@ fn parse_struct_member_list(lxr: struct Lexer *) -> struct List
 data Type {
 
     // Atomic types
-    Int {_:char},
-    Bool {_:char},
-    Char {_:char},
-    Void {_:char},
-    CStrArr {_:char},
-    File {_:char},
+    Int,
+    Bool,
+    Char,
+    Void,
+    CStrArr,
+    File,
 
 
     // Compound types
@@ -317,22 +317,22 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         switch (lxr->tok_tag)
         {
         case TOK_VOID:
-            *type = Type::Void {_='x'}; // TODO: allow empty data variants
+            *type = Type::Void;
             break;
         case TOK_CHAR:
-            *type = Type::Char {_='x'}; // TODO: allow empty data variants
+            *type = Type::Char;
             break;
         case TOK_INT:
-            *type = Type::Int {_='x'}; // TODO: allow empty data variants
+            *type = Type::Int;
             break;
         case TOK_BOOL:
-            *type = Type::Bool {_='x'}; // TODO: allow empty data variants
+            *type = Type::Bool;
             break;
         case TOK_CSTR_ARR:
-            *type = Type::CStrArr {_='x'}; // TODO: allow empty data variants
+            *type = Type::CStrArr;
             break;
         case TOK_FILE:
-            *type = Type::File {_='x'}; // TODO: allow empty data variants
+            *type = Type::File;
             break;
 
         default:
@@ -1065,7 +1065,7 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         else
         {
             ret_type = malloc(sizeof(*ret_type));
-            *ret_type = Type::Void {_='x'}; // TODO: allow empty data variants
+            *ret_type = Type::Void;
         }
 
         lexer_expect(lxr, TOK_OPEN_BRACE);
