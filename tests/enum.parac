@@ -1,0 +1,19 @@
+#include <stdio.h>
+
+data Abc { A, B, C }
+
+fn main() -> int {
+    let a: data Abc = Abc::A;
+    let b: data Abc = Abc::B;
+    let c: data Abc = Abc::C;
+
+    if let Abc::C = a {
+        printf("What?\n");
+    }
+
+    if let Abc::B = b {
+        printf("As I suspected.\n");
+    }
+
+    return 0;
+}

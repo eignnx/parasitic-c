@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project tries to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3]
+### Fixed
+- Allow construction of data variants with zero-argument constructors.
+- Allow pure c-style data definitions which have no associated data, just tags.
+
 ## [0.1.2]
 ### Added
 - Allow name puns in pattern match bindings (`if let A::X { field: Ty } = ...` instead of `if let A::X { field = field: Ty } = ...`).

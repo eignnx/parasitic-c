@@ -47,22 +47,23 @@ fn parse_struct_member_list(lxr: struct Lexer *) -> struct List
 data Type {
 
     // Atomic types
-    Int { _: char, },
-    Bool { _: char, },
-    Char { _: char, },
-    Void { _: char, },
-    CStrArr { _: char, },
-    File { _: char, },
+    Int {_:char},
+    Bool {_:char},
+    Char {_:char},
+    Void {_:char},
+    CStrArr {_:char},
+    File {_:char},
+
 
     // Compound types
-    Ptr { child: data Type *, },
+    Ptr { child: data Type * },
     FnPtr {
         param_types: struct List, // A `List` of `Type *`s.
         ret_type: data Type *,
     },
-    NamedStructRef { name: char *, },
-    NamedEnumRef { name: char *, },
-    NamedDataRef { name: char *, },
+    NamedStructRef { name: char * },
+    NamedEnumRef { name: char * },
+    NamedDataRef { name: char * },
 
     // TODO: Remove anonymous types once algebraic data types are impl'd.
     AnonStruct {
@@ -279,7 +280,7 @@ fn parse_type(lxr: struct Lexer *) -> data Type *
     while (lexer_accept(lxr, TOK_STAR))
     {
         let new_type: data Type * = malloc(sizeof(*new_type));
-        *new_type = Type::Ptr { child: type };
+        *new_type = Type::Ptr { child = type };
         type = new_type;
     }
     return type;
@@ -316,22 +317,22 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         switch (lxr->tok_tag)
         {
         case TOK_VOID:
-            *type = Type::Void { _: 'x' };
+            *type = Type::Void {_='x'}; // TODO: allow empty data variants
             break;
         case TOK_CHAR:
-            *type = Type::Char { _: 'x' };
+            *type = Type::Char {_='x'}; // TODO: allow empty data variants
             break;
         case TOK_INT:
-            *type = Type::Int { _: 'x' };
+            *type = Type::Int {_='x'}; // TODO: allow empty data variants
             break;
         case TOK_BOOL:
-            *type = Type::Bool { _: 'x' };
+            *type = Type::Bool {_='x'}; // TODO: allow empty data variants
             break;
         case TOK_CSTR_ARR:
-            *type = Type::CStrArr { _: 'x' };
+            *type = Type::CStrArr {_='x'}; // TODO: allow empty data variants
             break;
         case TOK_FILE:
-            *type = Type::File { _: 'x' };
+            *type = Type::File {_='x'}; // TODO: allow empty data variants
             break;
 
         default:
@@ -348,7 +349,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         if (lexer_accept(lxr, TOK_IDENT))
         {
             type = malloc(sizeof(*type));
-            *type = Type::NamedStructRef { name: lxr->token };
+            *type = Type::NamedStructRef { name = lxr->token };
             return type;
         }
 
@@ -359,7 +360,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
             lexer_expect(lxr, TOK_CLOSE_BRACE);
 
             type = malloc(sizeof(*type));
-            *type = Type::AnonStruct { struct_members: members };
+            *type = Type::AnonStruct { struct_members = members };
             return type;
         }
 
@@ -371,7 +372,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         if (lexer_accept(lxr, TOK_IDENT))
         {
             type = malloc(sizeof(*type));
-            *type = Type::NamedEnumRef { name: lxr->token };
+            *type = Type::NamedEnumRef { name = lxr->token };
             return type;
         }
 
@@ -381,7 +382,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
             lexer_expect(lxr, TOK_CLOSE_BRACE);
 
             type = malloc(sizeof(*type));
-            *type = Type::AnonEnum { enum_members: members };
+            *type = Type::AnonEnum { enum_members = members };
             return type;
         }
 
@@ -392,7 +393,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
     {
         lexer_expect(lxr, TOK_IDENT);
         type = malloc(sizeof(*type));
-        *type = Type::NamedDataRef { name: lxr->token };
+        *type = Type::NamedDataRef { name = lxr->token };
         return type;
     }
 
@@ -404,7 +405,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         lexer_expect(lxr, TOK_CLOSE_BRACE);
 
         type = malloc(sizeof(*type));
-        *type = Type::AnonUnion { struct_members: members };
+        *type = Type::AnonUnion { struct_members = members };
         return type;
     }
 
@@ -428,7 +429,7 @@ fn parse_direct_type(lxr: struct Lexer *) -> data Type *
         }
 
         type = malloc(sizeof(*type));
-        *type = Type::FnPtr { param_types: param_types, ret_type: ret_type };
+        *type = Type::FnPtr { param_types, ret_type };
         return type;
     }
 
@@ -756,7 +757,8 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
 {
     // A `List` of `StructMember`s.
     let struct_components: struct List = list_init();
-    
+
+
     {
         let tags: struct List = list_init(); // A list of `char*`s.
         
@@ -771,7 +773,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
         }
 
         let tags_enum: data Type * = malloc(sizeof(*tags_enum));
-        *tags_enum = Type::AnonEnum { enum_members: tags };
+        *tags_enum = Type::AnonEnum { enum_members = tags };
 
         {
             let enum_component: struct StructMember * = malloc(sizeof(*enum_component));
@@ -781,7 +783,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
         }
     }
 
-    {
+    if (!data_decl_is_pure_c_style_enum(members)) {
         let struct_members: struct List = list_init(); // a list of `StructMember`s.
 
         let iter: struct ListNode * = members->first;
@@ -793,7 +795,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
             if (!list_is_empty(&dm->struct_members))
             {
                 let anon_struct: data Type * = malloc(sizeof(*anon_struct));
-                *anon_struct = Type::AnonStruct { struct_members: dm->struct_members };
+                *anon_struct = Type::AnonStruct { struct_members = dm->struct_members };
 
                 let sm: struct StructMember * = malloc(sizeof(*sm));
                 sm->field = mangle_variant_struct_name(name, dm->name);
@@ -807,7 +809,7 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
 
         {
             let union_of_structs: data Type * = malloc(sizeof(*union_of_structs));
-            *union_of_structs = Type::AnonUnion { struct_members: struct_members };
+            *union_of_structs = Type::AnonUnion { struct_members = struct_members };
 
             let union_member: struct StructMember * = malloc(sizeof(*union_member));
             union_member->field = "as";
@@ -823,6 +825,19 @@ fn display_named_data_decl(out: FILE*, name: char *, members: struct List *) -> 
     struct_decl->as.named_struct_decl.members = struct_components;
 
     return display_item(out, struct_decl);
+}
+
+fn data_decl_is_pure_c_style_enum(members: struct List *) -> bool {
+    let iter: struct ListNode * = members->first;
+    while (iter)
+    {
+        let dm: struct DataMember * = (struct DataMember *) iter->value;
+        if (!list_is_empty(&dm->struct_members))
+            return false;
+
+        iter = iter->next;
+    }
+    return true;
 }
 
 // unnamed_parameter_list ::= type (',' type)* ','?
@@ -1050,7 +1065,7 @@ fn parse_item(lxr: struct Lexer *) -> struct Item *
         else
         {
             ret_type = malloc(sizeof(*ret_type));
-            *ret_type = Type::Void { _: 'x' };
+            *ret_type = Type::Void {_='x'}; // TODO: allow empty data variants
         }
 
         lexer_expect(lxr, TOK_OPEN_BRACE);
@@ -1517,7 +1532,7 @@ fn display_if_let(
     let expr_temp: char * = gen_temp();
 
     let type: struct Type * = malloc(sizeof(*type));
-    *type = Type::NamedDataRef { name: type_name };
+    *type = Type::NamedDataRef { name = type_name };
 
     // Save `expr` in a temporary named `expr_temp`.
     if (!(display_typed_identifier(out, type, expr_temp) &&
@@ -1586,7 +1601,7 @@ fn display_let_else(
     let expr_temp: char * = gen_temp();
 
     let type: struct Type * = malloc(sizeof(*type));
-    *type = Type::NamedDataRef { name: type_name };
+    *type = Type::NamedDataRef { name = type_name };
 
     // Save `expr` in a temporary named `expr_temp`.
     if (!(display_typed_identifier(out, type, expr_temp) &&
@@ -2161,7 +2176,8 @@ fn display_literal_variant(
     if (!(fprintf_s(out, ".tag = %s,\n", mangle_variant_tag_name(type_name, variant_name)) >= 0))
         return false;
 
-    // Output the data.
+    // Output the data section.
+    if (!list_is_empty(&initializer_list)) // Skip empty data variants.
     {
         if (!(fprintf_s(out, ".as = {\n") >= 0))
             return false;
@@ -2188,10 +2204,10 @@ fn display_literal_variant(
 
         if (!(fprintf_s(out, "},\n") >= 0))
             return false;
-    }
 
-    if (!(fprintf_s(out, "},\n") >= 0))
-        return false;
+        if (!(fprintf_s(out, "},\n") >= 0))
+            return false;
+    }
 
     return fprintf_s(out, "}") >= 0;
 }
@@ -2393,9 +2409,14 @@ fn parse_primary_expression(lxr: struct Lexer *) -> struct Expr *
 
             lexer_expect(lxr, TOK_IDENT);
             let variant_name: char * = lxr->token;
-            lexer_expect(lxr, TOK_OPEN_BRACE);
-            let init_list: struct List = parse_struct_initializer_list(lxr);
-            lexer_expect(lxr, TOK_CLOSE_BRACE);
+            let init_list: struct List;
+            if (lexer_accept(lxr, TOK_OPEN_BRACE)) // Allow zero-arg constructors i.e. `Tm::Nop`.
+            {
+                init_list = parse_struct_initializer_list(lxr);
+                lexer_expect(lxr, TOK_CLOSE_BRACE);
+            } else {
+                init_list = list_init();
+            }
 
             expr = malloc(sizeof(*expr));
             expr->tag = EXPR_LITERAL_VARIANT;
